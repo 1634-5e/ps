@@ -1,7 +1,17 @@
-# Vue 3 + Vite
+# Current Status
+![img](/screenshots/1.png)
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+# Build(Dev)
 
-## Recommended IDE Setup
+## windows 10
 
-- [VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=johnsoncodehk.volar)
+- C++ build Tools
+- Node.js v17.3.0
+- yarn v1.22.15
+- webview2 v96.0.1054.62
+- rustc v1.59.0-nightly
+- cargo v1.59.0-nightly
+
+```sh
+yarn tauri dev
+```
