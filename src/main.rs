@@ -1,7 +1,13 @@
+use std::path::PathBuf;
+
 use iced::{
     button, image, Alignment, Application, Button, Column, Command, Container, Element, Length,
     Row, Settings, Svg, Text,
 };
+use native_dialog::FileDialog;
+
+mod error;
+mod style;
 
 pub fn main() -> iced::Result {
     Ps::run(Settings::default())
@@ -13,7 +19,7 @@ struct Ps {
 
 #[derive(Debug, Clone)]
 enum Message {
-    ImageLoaded(Result<ImageBox, Error>),
+    ImageLoaded(ImageBox),
     PickImage,
 }
 
@@ -27,7 +33,7 @@ impl Application for Ps {
             Ps {
                 pages: Pages::new(),
             },
-            Command::perform(ImageBox::load(), Message::ImageLoaded),
+            Command::none(),
         )
     }
 
@@ -56,9 +62,9 @@ impl Pages {
         Pages {
             pages: vec![
                 Page::MainPage {
-                    imagebox: ImageBox::Loading,
+                    image_box: ImageBox::Init(button::State::new()),
                 },
-                Page::Settings,
+                Page::UserSettings,
             ],
             current: 0,
         }
@@ -67,21 +73,28 @@ impl Pages {
     fn title(&self) -> String {
         match self.pages[self.current] {
             Page::MainPage { .. } => "MainPage".to_owned(),
-            Page::Settings => "Settings".to_owned(),
+            Page::UserSettings => "Settings".to_owned(),
         }
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::ImageLoaded(Ok(ib)) => {
-                if let Page::MainPage { imagebox } = &mut self.pages[0] {
-                    *imagebox = ib;
+            Message::ImageLoaded(ib) => {
+                if let Page::MainPage { image_box } = &mut self.pages[0] {
+                    *image_box = ib;
                 }
-
                 Command::none()
             }
-            Message::ImageLoaded(Err(_error)) => Command::none(),
-            Message::PickImage => Command::none(),
+            Message::PickImage => {
+                if let Page::MainPage { image_box } = &mut self.pages[self.current] {
+                    *image_box = ImageBox::Loading;
+                }
+                let selected = ImageBox::pick_image();
+                match selected {
+                    Some(path) => Command::perform(ImageBox::load(path), Message::ImageLoaded),
+                    None => Command::none(),
+                }
+            }
         }
     }
 
@@ -91,15 +104,15 @@ impl Pages {
 }
 
 enum Page {
-    MainPage { imagebox: ImageBox },
-    Settings,
+    MainPage { image_box: ImageBox },
+    UserSettings,
 }
 
 impl<'a> Page {
     fn view(&mut self) -> Element<Message> {
         match self {
-            Page::MainPage { imagebox } => Self::main_page(imagebox),
-            Page::Settings => Self::settings(),
+            Page::MainPage { image_box } => Self::main_page(image_box),
+            Page::UserSettings => Self::settings(),
         }
     }
 
@@ -107,21 +120,20 @@ impl<'a> Page {
         Column::new().spacing(20).push(Text::new(title).size(50))
     }
 
-    fn main_page(imagebox: &mut ImageBox) -> Element<Message> {
+    fn main_page(image_box: &mut ImageBox) -> Element<Message> {
         let toolbar = Row::new()
             .width(Length::Fill)
             .height(Length::FillPortion(1))
             .spacing(20)
-            .push(Text::new("1"))
-            .push(Text::new("2"))
-            .push(Text::new("3"))
-            .push(Text::new("4"))
-            .push(Text::new("5"))
+            .push(Text::new("One"))
+            .push(Text::new("Two"))
+            .push(Text::new("Three"))
+            .push(Text::new("Four"))
             .push(Text::new("There will be a toolbar here..."));
 
         let view_picker = Row::new()
             .height(Length::FillPortion(5))
-            .push(imagebox.view())
+            .push(image_box.view())
             .push(
                 Column::new()
                     .width(Length::FillPortion(2))
@@ -142,9 +154,10 @@ impl<'a> Page {
 
 #[derive(Debug, Clone)]
 enum ImageBox {
+    Init(button::State),
     Loading,
     Loaded { image_type: ImageType },
-    Errored(Error),
+    Errored(error::Error),
 }
 
 impl<'a> ImageBox {
@@ -162,32 +175,55 @@ impl<'a> ImageBox {
 
     fn view(&mut self) -> Element<Message> {
         match self {
-            ImageBox::Loading => Self::basic_layout(Text::new("正在加载图片...").size(40)),
+            ImageBox::Init(state) => Self::basic_layout(
+                Column::new().push(button(state, "Open an image").on_press(Message::PickImage)),
+            ),
+            ImageBox::Loading => Self::basic_layout(Text::new("Loading...").size(40)),
             ImageBox::Loaded { image_type } => match image_type {
                 ImageType::Bitmap(image, state) => {
                     Self::basic_layout(image::Viewer::new(state, image.clone()))
                 }
                 ImageType::Vector(image) => Self::basic_layout(image.clone()),
             },
-            ImageBox::Errored(..) => Self::basic_layout(Text::new("加载失败").size(40)),
+            ImageBox::Errored(e) => match e {
+                error::Error::NameInvalid => Self::basic_layout(Text::new("Name Invalid!").size(40)),
+                error::Error::NotFound => Self::basic_layout(Text::new("Not Exist!").size(40)),
+            },
         }
     }
 
-    async fn load() -> Result<ImageBox, Error> {
-        let image_path = format!("{}/images/tiger.svg", env!("CARGO_MANIFEST_DIR"));
-
-        if image_path.ends_with(".svg") {
-            Ok(ImageBox::Loaded {
-                image_type: ImageType::Vector(Svg::from_path(image_path)),
-            })
-        } else {
-            Ok(ImageBox::Loaded {
-                image_type: ImageType::Bitmap(
-                    image::Handle::from_path(image_path),
-                    image::viewer::State::new(),
-                ),
-            })
+    async fn load(path: PathBuf) -> ImageBox {
+        if !path.exists() {
+            return ImageBox::Errored(error::Error::NotFound);
         }
+        match path.extension() {
+            Some(ext) => {
+                if ext == "svg" {
+                    ImageBox::Loaded {
+                        image_type: ImageType::Vector(Svg::from_path(path)),
+                    }
+                } else {
+                    ImageBox::Loaded {
+                        image_type: ImageType::Bitmap(
+                            image::Handle::from_path(path),
+                            image::viewer::State::new(),
+                        ),
+                    }
+                }
+            }
+            None => ImageBox::Errored(error::Error::NameInvalid),
+        }
+    }
+
+    fn pick_image() -> Option<PathBuf> {
+        let path = FileDialog::new()
+            .set_location("D://Desktop")
+            .add_filter("PNG Image", &["png"])
+            .add_filter("JPEG Image", &["jpg", "jpeg"])
+            .add_filter("SVG Image", &["svg"])
+            .show_open_single_file()
+            .unwrap();
+        path
     }
 }
 
@@ -197,36 +233,8 @@ enum ImageType {
     Vector(Svg),
 }
 
-#[derive(Debug, Clone)]
-enum Error {
-    NotFoundError,
-    OtherError,
-}
-
 fn button<'a>(state: &'a mut button::State, text: &str) -> Button<'a, Message> {
     Button::new(state, Text::new(text))
         .padding(10)
-        .style(style::Button::Primary)
-}
-
-mod style {
-    use iced::{button, Background, Color, Vector};
-
-    pub enum Button {
-        Primary,
-    }
-
-    impl button::StyleSheet for Button {
-        fn active(&self) -> button::Style {
-            button::Style {
-                background: Some(Background::Color(match self {
-                    Button::Primary => Color::from_rgb(0.11, 0.42, 0.87),
-                })),
-                border_radius: 12.0,
-                shadow_offset: Vector::new(1.0, 1.0),
-                text_color: Color::WHITE,
-                ..button::Style::default()
-            }
-        }
-    }
+        .style(style::button::Button::Primary)
 }

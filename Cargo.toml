@@ -13,3 +13,4 @@ iced = { git = "https://github.com/iced-rs/iced", features = [
     "svg",
     "canvas",
 ] }
+native-dialog = "0.6.2"
