@@ -30,6 +30,7 @@ impl<'a> Page {
             common_button::toolbar(&mut toolbar.settings, "settings").on_press(Message::ChangePage),
         ))
         .width(Length::FillPortion(2));
+        //TODO:逐步加入按钮，先从关闭当前图片开始
         let toolbar = Row::new()
             .align_items(Alignment::Center)
             .width(Length::FillPortion(8))
