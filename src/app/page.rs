@@ -1,8 +1,9 @@
 use iced::{button, Alignment, Column, Element, Length, Row, Text};
 
-use super::app::Message;
 use super::image_box::ImageBox;
-use super::super::common::button as common_button;
+use super::message::Message;
+use crate::common::button as common_button;
+use crate::common::custom_box::end_row;
 
 //程序的每一个页面，预计只包含主页和设置页面，写成这样方便加入新的页面
 pub enum Page {
@@ -23,21 +24,26 @@ impl<'a> Page {
         }
     }
 
-    //TODO: 用pane_grid重新布局
+    //自带的样式有点少，如果要让某个元素被放在末位，则让同等的元素随便有个Length::Fill或者Length::FillPortion（然后要放末位的那个不管），就会自动被挤过去。。（放中间同理，前后两个空白等值的FillPortion
     fn main_page(image_box: &'a mut ImageBox, toolbar: &'a mut ToolBar) -> Element<'a, Message> {
-        let settings = Row::new()
-            .align_items(Alignment::Center)
-            .push(common_button::toolbar(&mut toolbar.settings, "settings").on_press(Message::ChangePage));
+        let settings = end_row(Row::new().align_items(Alignment::Center).push(
+            common_button::toolbar(&mut toolbar.settings, "settings").on_press(Message::ChangePage),
+        ))
+        .width(Length::FillPortion(2));
         let toolbar = Row::new()
             .align_items(Alignment::Center)
-            .width(Length::Fill)
-            .height(Length::FillPortion(1))
+            .width(Length::FillPortion(8))
             .spacing(20)
             .push(Text::new("One"))
             .push(Text::new("Two"))
             .push(Text::new("Three"))
             .push(Text::new("Four"))
             .push(Text::new("There will be a toolbar here..."));
+
+        let buttons = Row::new()
+            .height(Length::FillPortion(1))
+            .push(toolbar)
+            .push(settings);
 
         let view_picker = Row::new()
             .height(Length::FillPortion(9))
@@ -49,9 +55,10 @@ impl<'a> Page {
             );
 
         Column::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
             .align_items(Alignment::Center)
-            .push(toolbar)
-            .push(settings)
+            .push(buttons)
             .push(view_picker)
             .into()
     }

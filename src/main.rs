@@ -1,8 +1,8 @@
-use iced::Application;
-use iced::Settings;
+use app::Ps;
+use iced::{Application, Settings};
 
-mod common;
 mod app;
+mod common;
 pub fn main() -> iced::Result {
-    app::app::Ps::run(Settings::default())
+    Ps::run(Settings::default())
 }

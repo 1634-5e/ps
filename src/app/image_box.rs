@@ -1,9 +1,10 @@
-use super::super::common::button::{navigator, toolbar};
-use super::app::Message;
 use super::error;
 use super::file_dialog;
+use super::message::Message;
 use super::settings;
-use iced::{button, image, Column, Container, Element, Length, Svg, Text};
+use crate::common::button::{navigator, toolbar};
+use crate::common::custom_box::center_column;
+use iced::{button, image, Column, Container, Element, Length, Row, Svg, Text};
 
 // 展示图片以及未来的编辑区域
 #[derive(Debug, Clone)]
@@ -21,6 +22,12 @@ pub enum ImageBox {
     Errored(error::Error),
 }
 
+#[derive(Debug, Clone)]
+pub enum ImageType {
+    Bitmap(image::Handle, image::viewer::State),
+    Vector(Svg),
+}
+
 impl<'a> ImageBox {
     fn basic_layout<E>(content: E) -> Element<'a, Message>
     where
@@ -28,6 +35,7 @@ impl<'a> ImageBox {
     {
         Container::new(content)
             .width(Length::FillPortion(5))
+            .height(Length::Fill)
             .padding(20)
             .center_x()
             .center_y()
@@ -36,7 +44,7 @@ impl<'a> ImageBox {
 
     pub fn view(&mut self) -> Element<Message> {
         match self {
-            ImageBox::Init { single, dir } => Self::basic_layout(
+            ImageBox::Init { single, dir } => Self::basic_layout(center_column(
                 Column::new()
                     .push(
                         toolbar(single, "Open an image")
@@ -46,7 +54,7 @@ impl<'a> ImageBox {
                         toolbar(dir, "Directory")
                             .on_press(Message::PickImage(file_dialog::DialogType::Dir)),
                     ),
-            ),
+            )),
             ImageBox::Loading => Self::basic_layout(Text::new("Loading...").size(40)),
             ImageBox::Loaded {
                 image_type,
@@ -57,9 +65,11 @@ impl<'a> ImageBox {
                     Self::basic_layout(Text::new("Empty Folder."))
                 } else {
                     match &mut image_type[current.clone()] {
-                        ImageType::Bitmap(image, state) => {
-                            Self::basic_layout(image::Viewer::new(state, image.clone()))
-                        }
+                        ImageType::Bitmap(image, state) => Self::basic_layout(
+                            image::Viewer::new(state, image.clone())
+                                .width(Length::Fill)
+                                .height(Length::Fill),
+                        ),
                         ImageType::Vector(image) => Self::basic_layout(image.clone()),
                     }
                 }
@@ -142,10 +152,4 @@ impl<'a> ImageBox {
     pub fn pick_image(dialog_type: file_dialog::DialogType) -> Option<file_dialog::PathBuf> {
         file_dialog::pick(dialog_type)
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum ImageType {
-    Bitmap(image::Handle, image::viewer::State),
-    Vector(Svg),
 }
