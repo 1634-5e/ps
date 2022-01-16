@@ -7,7 +7,7 @@ mod settings;
 
 pub use iced::{button, Application, Command, Element};
 
-use image_box::ImageBox;
+use image_box::{ImageBox, Navigate};
 use message::Message;
 use page::{Page, ToolBar};
 
@@ -116,6 +116,12 @@ impl Pages {
             //FIXME: 后面页面增加时，这里的逻辑就不适用了
             Message::ChangePage => {
                 self.current = (self.current + 1) % 2;
+                Command::none()
+            }
+            Message::Navigate(navigate) => {
+                if let Page::MainPage { image_box, .. } = &mut self.pages[0] {
+                    image_box.navigate(navigate);
+                }
                 Command::none()
             }
         }

@@ -2,8 +2,7 @@ use super::error;
 use super::file_dialog;
 use super::message::Message;
 use super::settings;
-use crate::common::button::{navigator, toolbar};
-use crate::common::custom_box::center_column;
+use crate::common::button as common_button;
 use iced::{button, image, Column, Container, Element, Length, Row, Svg, Text};
 
 // 展示图片以及未来的编辑区域
@@ -15,6 +14,8 @@ pub enum ImageBox {
     },
     Loading,
     Loaded {
+        previous: button::State,
+        next: button::State,
         image_type: Vec<ImageType>,
         current: usize,
         mode: super::settings::LoadMode,
@@ -44,21 +45,23 @@ impl<'a> ImageBox {
 
     pub fn view(&mut self) -> Element<Message> {
         match self {
-            ImageBox::Init { single, dir } => Self::basic_layout(center_column(
-                Column::new()
+            ImageBox::Init { single, dir } => Self::basic_layout(
+                Row::new()
                     .push(
-                        toolbar(single, "Open an image")
+                        common_button::entry(single, "Open an image")
                             .on_press(Message::PickImage(file_dialog::DialogType::File)),
                     )
                     .push(
-                        toolbar(dir, "Directory")
+                        common_button::entry(dir, "Directory")
                             .on_press(Message::PickImage(file_dialog::DialogType::Dir)),
                     ),
-            )),
+            ),
             ImageBox::Loading => Self::basic_layout(Text::new("Loading...").size(40)),
             ImageBox::Loaded {
                 image_type,
                 current,
+                previous,
+                next,
                 ..
             } => {
                 if image_type.len() == 0 {
@@ -66,11 +69,27 @@ impl<'a> ImageBox {
                 } else {
                     match &mut image_type[current.clone()] {
                         ImageType::Bitmap(image, state) => Self::basic_layout(
-                            image::Viewer::new(state, image.clone())
-                                .width(Length::Fill)
-                                .height(Length::Fill),
+                            Row::new()
+                                .push(
+                                    common_button::navigator(previous, "<")
+                                        .on_press(Message::Navigate(Navigate::Previous)),
+                                )
+                                .push(
+                                    image::Viewer::new(state, image.clone())
+                                        .width(Length::Fill)
+                                        .height(Length::Fill),
+                                )
+                                .push(
+                                    common_button::navigator(next, ">")
+                                        .on_press(Message::Navigate(Navigate::Next)),
+                                ),
                         ),
-                        ImageType::Vector(image) => Self::basic_layout(image.clone()),
+                        ImageType::Vector(image) => Self::basic_layout(
+                            Row::new()
+                                .push(common_button::navigator(previous, "<"))
+                                .push(image.clone())
+                                .push(common_button::navigator(next, ">")),
+                        ),
                     }
                 }
             }
@@ -121,6 +140,8 @@ impl<'a> ImageBox {
             image_type: images,
             current,
             mode: load_mode,
+            previous: button::State::new(),
+            next: button::State::new(),
         }
     }
 
@@ -152,4 +173,33 @@ impl<'a> ImageBox {
     pub fn pick_image(dialog_type: file_dialog::DialogType) -> Option<file_dialog::PathBuf> {
         file_dialog::pick(dialog_type)
     }
+
+    //这里的卡顿比较的明显
+    //TODO:让其他的图片隐藏而不是删除
+    pub fn navigate(&mut self, navigate: Navigate) {
+        if let ImageBox::Loaded {
+            current,
+            image_type,
+            ..
+        } = self
+        {
+            match navigate {
+                Navigate::Previous => {
+                    *current += image_type.len() - 1;
+                    *current %= image_type.len();
+                }
+                Navigate::Next => {
+                    *current += 1;
+                    *current %= image_type.len();
+                }
+            }
+        }
+    }
+}
+
+//TODO: 加入滚轮
+#[derive(Debug, Clone)]
+pub enum Navigate {
+    Previous,
+    Next,
 }

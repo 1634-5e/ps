@@ -2,20 +2,25 @@ use iced::{button, Background, Color, Vector};
 
 pub enum Button {
     Toolbar,
-    Navigator
+    Navigator,
+    PickImage,
 }
 
+//可选：background, shadow_offset, border_radius, border_width, border_color, text_color
 impl button::StyleSheet for Button {
     fn active(&self) -> button::Style {
-        button::Style {
-            background: Some(Background::Color(match self {
-                Button::Toolbar => Color::from_rgb(0.11, 0.42, 0.87),
-                Button::Navigator => Color::WHITE
-            })),
-            border_radius: 12.0,
-            shadow_offset: Vector::new(1.0, 1.0),
-            text_color: Color::WHITE,
-            ..button::Style::default()
+        match self {
+            Button::Toolbar => button::Style {
+                background: Some(Background::Color(Color::from_rgb(0.11, 0.42, 0.87))),
+                border_radius: 10.0,
+                ..button::Style::default()
+            },
+            Button::Navigator => button::Style::default(),
+            Button::PickImage => button::Style {
+                background: Some(Background::Color(Color::from_rgb(0.71, 0.60, 0.63))),
+                shadow_offset: Vector::new(1.0, 1.0),
+                ..button::Style::default()
+            },
         }
     }
 }

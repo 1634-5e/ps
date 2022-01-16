@@ -3,7 +3,7 @@ use iced::{button, Alignment, Column, Element, Length, Row, Text};
 use super::image_box::ImageBox;
 use super::message::Message;
 use crate::common::button as common_button;
-use crate::common::custom_box::end_row;
+use crate::common::custom_box::row_with_blanks;
 
 //程序的每一个页面，预计只包含主页和设置页面，写成这样方便加入新的页面
 pub enum Page {
@@ -26,9 +26,14 @@ impl<'a> Page {
 
     //自带的样式有点少，如果要让某个元素被放在末位，则让同等的元素随便有个Length::Fill或者Length::FillPortion（然后要放末位的那个不管），就会自动被挤过去。。（放中间同理，前后两个空白等值的FillPortion
     fn main_page(image_box: &'a mut ImageBox, toolbar: &'a mut ToolBar) -> Element<'a, Message> {
-        let settings = end_row(Row::new().align_items(Alignment::Center).push(
-            common_button::toolbar(&mut toolbar.settings, "settings").on_press(Message::ChangePage),
-        ))
+        let settings = row_with_blanks(
+            Row::new().align_items(Alignment::Center).push(
+                common_button::entry(&mut toolbar.settings, "settings")
+                    .on_press(Message::ChangePage),
+            ),
+            1,
+            0,
+        )
         .width(Length::FillPortion(2));
         //TODO:逐步加入按钮，先从关闭当前图片开始
         let toolbar = Row::new()
