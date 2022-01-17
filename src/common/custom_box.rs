@@ -1,11 +1,13 @@
-use crate::app::message::Message;
+use crate::app::message::MessageType;
 use iced::{Column, Element, Length, Row};
 
 //让元素出于一行的1/n的位置
 //FIXME: 优化算法
-pub fn row_with_blanks<'a, E>(content: E, before: usize, after: usize) -> Row<'a, Message>
+//这里涉及了两个generic type的使用，还有lifetime，可能会有bug
+pub fn row_with_blanks<'a, E, T: 'a>(content: E, before: usize, after: usize) -> Row<'a, T>
 where
-    E: Into<Element<'a, Message>>,
+    E: Into<Element<'a, T>>,
+    T: MessageType,
 {
     let mut res = Row::new();
     for _ in 0..before {
@@ -18,9 +20,10 @@ where
     res
 }
 
-pub fn column_with_blanks<'a, E>(content: E, before: usize, after: usize) -> Column<'a, Message>
+pub fn column_with_blanks<'a, E, T: 'a>(content: E, before: usize, after: usize) -> Column<'a, T>
 where
-    E: Into<Element<'a, Message>>,
+    E: Into<Element<'a, T>>,
+    T: MessageType,
 {
     let mut res = Column::new();
     for _ in 0..before {
