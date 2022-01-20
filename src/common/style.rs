@@ -11,8 +11,7 @@ impl button::StyleSheet for Button {
     fn active(&self) -> button::Style {
         match self {
             Button::Toolbar => button::Style {
-                background: Some(Background::Color(Color::from_rgb(0.11, 0.42, 0.87))),
-                border_radius: 10.0,
+                background: Some(Background::Color(Color::from_rgb(0.58, 0.71, 0.81))),
                 ..button::Style::default()
             },
             Button::Navigator => button::Style::default(),

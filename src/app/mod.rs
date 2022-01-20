@@ -22,7 +22,7 @@ pub struct Ps {
 }
 
 #[derive(Debug, Clone)]
-struct UserSettings {
+pub struct UserSettings {
     automatic_load: bool,
 }
 

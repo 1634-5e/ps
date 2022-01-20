@@ -1,6 +1,6 @@
 use super::message::MainPageMessage;
 use super::{file_dialog, message::ImageBoxMessage, UserSettings};
-use crate::common::button::entry;
+use crate::common::button::{entry, toolbar};
 use crate::common::custom_box::row_with_blanks;
 use crate::common::style;
 use iced::{button, image, Alignment, Command, Element, Length, Row, Svg, Text};
@@ -46,11 +46,6 @@ impl Buttons {
             open_dir: button::State::new(),
         }
     }
-}
-
-#[derive(Debug, Clone)]
-struct ImageBoxSettings {
-    automatic_load: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -135,16 +130,7 @@ impl Component for ImageBox {
                 }
             }
             ImageBoxMessage::Navigate(n) => {
-                let len = self.images.len();
-                match n {
-                    Navigate::Next => {
-                        self.current += 1;
-                    }
-                    Navigate::Previous => {
-                        self.current += len - 1;
-                    }
-                }
-                self.current %= len;
+                self.navigate(n);
             }
             ImageBoxMessage::PickImage(dp) => {
                 self.loading = true;
@@ -283,20 +269,12 @@ impl Component for ToolBar {
 
         let function_buttons = Row::new().height(Length::FillPortion(1)).push(
             Column::new()
-                .push(
-                    Button::new(&mut self.close_this, Text::new("close this")).on_press(
-                        MainPageMessage::ImageBoxMessage(ImageBoxMessage::CloseImage {
-                            whole: false,
-                        }),
-                    ),
-                )
-                .push(
-                    Button::new(&mut self.close_all, Text::new("close all")).on_press(
-                        MainPageMessage::ImageBoxMessage(ImageBoxMessage::CloseImage {
-                            whole: true,
-                        }),
-                    ),
-                ),
+                .push(toolbar(&mut self.close_this, "close this").on_press(
+                    MainPageMessage::ImageBoxMessage(ImageBoxMessage::CloseImage { whole: false }),
+                ))
+                .push(toolbar(&mut self.close_all, "close all").on_press(
+                    MainPageMessage::ImageBoxMessage(ImageBoxMessage::CloseImage { whole: true }),
+                )),
         );
 
         function_buttons.push(settings_button).into()

@@ -1,5 +1,7 @@
 use iced::{button, Alignment, Checkbox, Column, Command, Element, Length, Row, Text};
 
+use crate::common::button::entry;
+
 use super::component::{Component, ImageBox, ToolBar};
 use super::message::{MainPageMessage, UserSettingsMessage};
 use super::UserSettings;
@@ -98,6 +100,7 @@ impl Page for UserSettingsPage {
 
     fn view(&mut self, settings: &mut UserSettings) -> Element<UserSettingsMessage> {
         Column::new()
+            .push(entry(&mut self.back, "Back").on_press(UserSettingsMessage::GoToMainPage))
             .push(Checkbox::new(
                 settings.automatic_load,
                 "Automatically load images under the same dir",
