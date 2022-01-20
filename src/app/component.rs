@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::message::MainPageMessage;
 use super::{file_dialog, message::ImageBoxMessage, UserSettings};
 use crate::common::button::{entry, toolbar};
@@ -24,7 +26,7 @@ pub trait Component {
 #[derive(Debug, Clone)]
 pub struct ImageBox {
     buttons: Buttons,
-    images: Vec<ImageType>,
+    images: Vec<ImageData>,
     current: usize,
     loading: bool,
 }
@@ -49,7 +51,13 @@ impl Buttons {
 }
 
 #[derive(Debug, Clone)]
-pub enum ImageType {
+pub struct ImageData {
+    content: ImageType,
+    path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+enum ImageType {
     Bitmap(image::Handle, image::viewer::State),
     Vector(Svg),
 }
@@ -90,7 +98,7 @@ impl Component for ImageBox {
                 navigator(&mut self.buttons.previous, "<")
                     .on_press(ImageBoxMessage::Navigate(Navigate::Previous)),
             );
-            match &mut self.images[self.current] {
+            match &mut self.images[self.current].content {
                 ImageType::Bitmap(image, state) => {
                     basic_layout = basic_layout
                         .push(
@@ -126,86 +134,114 @@ impl Component for ImageBox {
                 if whole {
                     self.images.clear();
                 } else {
-                    self.images.remove(self.current);
+                    if self.current < self.images.len() {
+                        self.images.remove(self.current);
+                    }
                 }
             }
             ImageBoxMessage::Navigate(n) => {
                 self.navigate(n);
             }
-            ImageBoxMessage::PickImage(dp) => {
-                self.loading = true;
-                let path = Self::pick_image(dp).unwrap();
-                return Command::perform(
-                    Self::load(path, settings.automatic_load),
-                    ImageBoxMessage::ImageLoaded,
-                );
-            }
+            ImageBoxMessage::PickImage(dp) => match Self::pick_image(dp) {
+                Some(path) => {
+                    self.loading = true;
+                    return Command::perform(
+                        Self::load(path, settings.automatic_load),
+                        ImageBoxMessage::ImageLoaded,
+                    );
+                }
+                None => {}
+            },
         }
         Command::none()
     }
 }
 
 impl ImageBox {
-    //看不少软件都是打开一个图片自动就加载了同级及以下的其他图片。这里大概会做成一个选项。
-    pub async fn load(path: file_dialog::PathBuf, mode: bool) -> (Vec<ImageType>, usize) {
-        let picked = path.clone();
-        let mut current: usize = 0;
-
-        let paths = match mode {
-            true => Self::strict(path),
-            false => Self::automatic(path),
-        };
-
-        let mut images: Vec<ImageType> = vec![];
-
-        paths.into_iter().enumerate().for_each(|(i, path)| {
-            if path == picked {
-                current = i;
-            }
-            match path.extension() {
-                Some(ext) => {
-                    if ext == "svg" {
-                        images.push(ImageType::Vector(Svg::from_path(path)));
-                    } else {
-                        images.push(ImageType::Bitmap(
-                            image::Handle::from_path(path),
-                            image::viewer::State::new(),
-                        ));
-                    }
-                }
-                None => {}
-            }
-        });
-        (images, current)
-    }
-
-    fn strict(path: file_dialog::PathBuf) -> Vec<file_dialog::PathBuf> {
-        let mut res: Vec<file_dialog::PathBuf> = vec![];
-        if path.is_dir() {
-            for entry in path.read_dir().expect("failed") {
-                res.push(entry.unwrap().path());
-            }
-        } else {
-            res.push(path);
-        }
-        res
-    }
-
-    fn automatic(path: file_dialog::PathBuf) -> Vec<file_dialog::PathBuf> {
-        let mut res: Vec<file_dialog::PathBuf> = vec![];
-        if path.is_dir() {
-            for entry in path.read_dir().expect("failed") {
-                res.push(entry.unwrap().path());
-            }
-        } else {
-            res.push(path);
-        }
-        res
-    }
-
     //这东西虽然严格上不需要，但是补充了逻辑
     fn pick_image(dialog_type: file_dialog::DialogType) -> Option<file_dialog::PathBuf> {
         file_dialog::pick(dialog_type)
+    }
+
+    pub async fn load(
+        path: file_dialog::PathBuf,
+        automatical_load: bool,
+    ) -> (Vec<ImageData>, usize) {
+        if path.is_dir() || automatical_load {
+            Self::automatic(path)
+        } else {
+            Self::strict(path)
+        }
+    }
+
+    fn content(path: PathBuf) -> Option<ImageData> {
+        match path.extension() {
+            Some(ext) => match ext.to_str() {
+                Some(s) => {
+                    if s == "png" {
+                        return Some(ImageData {
+                            content: ImageType::Bitmap(
+                                image::Handle::from_path(path.clone()),
+                                image::viewer::State::new(),
+                            ),
+                            path,
+                        });
+                    }
+                    if s == "svg" {
+                        return Some(ImageData {
+                            content: ImageType::Vector(Svg::from_path(path.clone())),
+                            path,
+                        });
+                    }
+                }
+                None => {}
+            },
+            None => {}
+        }
+
+        None
+    }
+
+    //只有不是文件夹且没开选项才会用到，因此简化了许多
+    fn strict(path: file_dialog::PathBuf) -> (Vec<ImageData>, usize) {
+        match Self::content(path) {
+            Some(content) => (vec![content], 0),
+            None => (vec![], 0),
+        }
+    }
+
+    //直接
+    fn automatic(path: file_dialog::PathBuf) -> (Vec<ImageData>, usize) {
+        let picked = path.clone();
+        let mut current: usize = 0;
+        let mut images: Vec<ImageData> = vec![];
+        let parent = if path.is_dir() {
+            path.as_path()
+        } else {
+            match path.parent() {
+                Some(p) => p,
+                None => return (vec![], 0), //FIXME:这里可能是parent获取值？（应该不会，没有提示类型冲突）
+            }
+        };
+        for entry in parent.read_dir().expect("failed") {
+            match entry {
+                Ok(d) => {
+                    let path = d.path();
+                    match Self::content(d.path()) {
+                        Some(i) => {
+                            images.push(i);
+                        }
+                        None => {}
+                    }
+                    if path == picked {
+                        current = images.len() - 1;
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        (images, current)
     }
 
     //这里的卡顿比较的明显
@@ -240,6 +276,7 @@ fn navigator<'a>(state: &'a mut button::State, text: &str) -> Button<'a, ImageBo
 }
 
 //这里面按钮绑定的事件比较宽泛，所以内联的message是主页的
+//TODO:像close这种按钮需要有禁用的情况，目前貌似不自带，得自己手动实现。。
 pub struct ToolBar {
     close_this: button::State,
     close_all: button::State,

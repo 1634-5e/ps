@@ -1,4 +1,4 @@
-use super::component::{ImageType, Navigate};
+use super::component::{ImageData, Navigate};
 use super::file_dialog::DialogType;
 
 pub trait MessageType {
@@ -56,7 +56,7 @@ impl MessageType for UserSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum ImageBoxMessage {
-    ImageLoaded((Vec<ImageType>, usize)),
+    ImageLoaded((Vec<ImageData>, usize)),
     PickImage(DialogType),
     Navigate(Navigate),
     CloseImage { whole: bool },
