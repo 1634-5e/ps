@@ -1,4 +1,4 @@
-use super::component::{ImageData, Navigate};
+use super::component::image_box::{ImageData, Navigate};
 use super::file_dialog::DialogType;
 
 pub trait MessageType {
@@ -56,7 +56,7 @@ impl MessageType for UserSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum ImageBoxMessage {
-    ImageLoaded((Vec<ImageData>, usize)),
+    ImageLoaded(Option<(Vec<ImageData>, usize)>),
     PickImage(DialogType),
     Navigate(Navigate),
     CloseImage { whole: bool },
@@ -69,11 +69,14 @@ impl MessageType for ImageBoxMessage {
                 true => "close this image".to_owned(),
                 false => "close all".to_owned(),
             },
-            ImageBoxMessage::ImageLoaded((images, current)) => format!(
+            ImageBoxMessage::ImageLoaded(Some((images, current))) => format!(
                 "{} umages are loaded.This is the {}th",
                 images.len(),
                 current
             ),
+            &ImageBoxMessage::ImageLoaded(None) => {
+                "Failed to load images whether the folder is empty or it's root dir.".to_owned()
+            }
             ImageBoxMessage::Navigate(n) => match n {
                 Navigate::Next => "switch to the next".to_owned(),
                 Navigate::Previous => "switch to the previous".to_owned(),

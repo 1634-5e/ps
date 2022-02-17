@@ -1,15 +1,18 @@
 use iced::{button, Alignment, Checkbox, Column, Command, Element, Length, Row, Text};
 
+use crate::app::component::image_box::ImageBox;
+use crate::app::component::toolbar::ToolBar;
+use crate::app::message::{MainPageMessage, UserSettingsMessage};
+use crate::app::UserSettings;
 use crate::common::button::entry;
 
-use super::component::{Component, ImageBox, ToolBar};
-use super::message::{MainPageMessage, UserSettingsMessage};
-use super::UserSettings;
+use super::component::Component;
+use super::Flags;
 
-pub trait Page {
+pub trait Page: Sized {
     type Message;
 
-    fn new() -> Self;
+    fn new(flags: &mut Flags) -> (Self, Command<Self::Message>);
     fn view(&mut self, settings: &mut UserSettings) -> Element<Self::Message>;
     fn update(
         &mut self,
@@ -28,11 +31,13 @@ pub struct MainPage {
 impl Page for MainPage {
     type Message = MainPageMessage;
 
-    fn new() -> MainPage {
-        MainPage {
-            image_box: ImageBox::new(),
-            toolbar: ToolBar::new(),
-        }
+    fn new(flags: &mut Flags) -> (MainPage, Command<MainPageMessage>) {
+        let (image_box, c) = ImageBox::new(flags);
+        let (toolbar, _) = ToolBar::new(flags);
+        (
+            MainPage { image_box, toolbar },
+            c.map(MainPageMessage::ImageBoxMessage),
+        )
     }
 
     fn title(&self) -> String {
@@ -88,10 +93,13 @@ pub struct UserSettingsPage {
 impl Page for UserSettingsPage {
     type Message = UserSettingsMessage;
 
-    fn new() -> UserSettingsPage {
-        UserSettingsPage {
-            back: button::State::new(),
-        }
+    fn new(flags: &mut Flags) -> (UserSettingsPage, Command<UserSettingsMessage>) {
+        (
+            UserSettingsPage {
+                back: button::State::new(),
+            },
+            Command::none(),
+        )
     }
 
     fn title(&self) -> String {
