@@ -188,7 +188,6 @@ pub async fn open(path: Vec<PathBuf>, automatical_load: bool) -> Option<(Vec<Ima
     let mut current = 0;
     for p in path {
         if p.is_dir() || automatical_load {
-            let mut current: usize = 0;
             let picked = p.clone();
             let parent;
             if p.is_dir() {
@@ -241,31 +240,6 @@ fn get_image_data_by_extension(path: PathBuf) -> Option<ImageData> {
         });
     }
     None
-
-    //暂时弃用的代码，备用
-    // match path.extension() {
-    //     Some(ext) => match ext.to_str() {
-    //         Some(s) => {
-    //             if s == "png" {
-    //                 return Some(ImageData {
-    //                     content: ImageType::Bitmap(
-    //                         image::Handle::from_path(path.clone()),
-    //                         image::viewer::State::new(),
-    //                     ),
-    //                     path,
-    //                 });
-    //             }
-    //             if s == "svg" {
-    //                 return Some(ImageData {
-    //                     content: ImageType::Vector(Svg::from_path(path.clone())),
-    //                     path,
-    //                 });
-    //             }
-    //         }
-    //         None => {}
-    //     },
-    //     None => {}
-    // }
 }
 
 //TODO: 加入滚轮,用于切换图片

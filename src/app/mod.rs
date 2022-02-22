@@ -35,6 +35,9 @@ pub struct UserSettings {
     pub automatic_load: bool,
 }
 
+//FIXME: update 目前一共要经历三层，Ps（程序主体）-> Page（程序页面）-> Component（页面的组成部分），
+//而返回view又要逆向经过三层，这样原本不必要的传参多了4次，
+//以后要是要减小程序内存的话，这里的层次应该全部去掉
 impl Application for Ps {
     type Executor = iced::executor::Default;
     type Message = Message;
