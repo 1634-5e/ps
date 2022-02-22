@@ -27,11 +27,11 @@ where
 {
     let mut res = Column::new();
     for _ in 0..before {
-        res = res.push(Column::new().width(Length::FillPortion(1)));
+        res = res.push(Column::new().height(Length::FillPortion(1)));
     }
     res = res.push(content);
     for _ in 0..after {
-        res = res.push(Column::new().width(Length::FillPortion(1)));
+        res = res.push(Column::new().height(Length::FillPortion(1)));
     }
     res
 }

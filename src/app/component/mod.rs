@@ -1,4 +1,7 @@
 //FIXME: 不应该把大部分函数放在结构体内
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use iced::{Command, Element};
 
 use super::{Flags, UserSettings};
@@ -11,10 +14,13 @@ pub trait Component: Sized {
     type Message;
 
     fn new(flags: &mut Flags) -> (Self, Command<Self::Message>);
-    fn view(&mut self, settings: &UserSettings) -> Element<Self::Message>;
+    fn view(
+        &mut self,
+        settings: Rc<RefCell<UserSettings>>,
+    ) -> Element<Self::Message>;
     fn update(
         &mut self,
         message: Self::Message,
-        settings: &mut UserSettings,
+        settings: Rc<RefCell<UserSettings>>,
     ) -> Command<Self::Message>;
 }

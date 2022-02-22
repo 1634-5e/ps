@@ -1,15 +1,18 @@
 use super::component::image_box::{ImageData, Navigate};
+use super::error::Error;
 use super::file_dialog::DialogType;
+
+use iced_native::Event;
 
 pub trait MessageType {
     fn describe(&self) -> String;
 }
 
-//这地方我看教程利用map单独弄了一个StepMessage，感觉还掌握不来
 #[derive(Debug, Clone)]
 pub enum Message {
     MainPageMessage(MainPageMessage),
     UserSettingsMessage(UserSettingsMessage),
+    ExternEvent(Event),
 }
 
 impl MessageType for Message {
@@ -17,6 +20,7 @@ impl MessageType for Message {
         match self {
             Message::MainPageMessage(mm) => mm.describe(),
             Message::UserSettingsMessage(um) => um.describe(),
+            Message::ExternEvent(ee) => "an extern event occured.".to_owned(),
         }
     }
 }
@@ -56,7 +60,7 @@ impl MessageType for UserSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum ImageBoxMessage {
-    ImageLoaded(Option<(Vec<ImageData>, usize)>),
+    ImageLoaded(Result<(Vec<ImageData>, usize), Error>),
     PickImage(DialogType),
     Navigate(Navigate),
     CloseImage { whole: bool },
@@ -69,12 +73,12 @@ impl MessageType for ImageBoxMessage {
                 true => "close this image".to_owned(),
                 false => "close all".to_owned(),
             },
-            ImageBoxMessage::ImageLoaded(Some((images, current))) => format!(
+            ImageBoxMessage::ImageLoaded(Ok((images, current))) => format!(
                 "{} umages are loaded.This is the {}th",
                 images.len(),
                 current
             ),
-            &ImageBoxMessage::ImageLoaded(None) => {
+            ImageBoxMessage::ImageLoaded(Err(_)) => {
                 "Failed to load images whether the folder is empty or it's root dir.".to_owned()
             }
             ImageBoxMessage::Navigate(n) => match n {

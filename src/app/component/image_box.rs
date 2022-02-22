@@ -1,12 +1,17 @@
-use super::Component;
-
-use crate::app::{file_dialog, Flags};
-use crate::app::{message::ImageBoxMessage, UserSettings};
-use crate::common::button::entry;
-use crate::common::style;
-
-use iced::{button, image, Button, Command, Element, Length, Row, Svg, Text};
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
+
+use iced::button::State;
+use iced::{button, image, Button, Command, Element, Length, Row, Svg, Text};
+
+use super::Component;
+use crate::app::error::Error;
+use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
+use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
+use crate::common::button::entry;
+use crate::common::custom_element::column_with_blanks;
+use crate::common::style;
 
 // 展示图片以及未来的编辑区域
 //因为toolbar触发的事件经常会跟imagebox里的东西相关，所以在考虑是否合并
@@ -15,7 +20,7 @@ pub struct ImageBox {
     buttons: Buttons,
     images: Vec<ImageData>,
     current: usize,
-    loading: bool,
+    status: Status,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -26,21 +31,17 @@ pub struct Buttons {
     next: button::State,
 }
 
-// impl Buttons {
-//     pub fn new() -> Buttons {
-//         Buttons {
-//             previous: button::State::new(),
-//             next: button::State::new(),
-//             open_image: button::State::new(),
-//             open_dir: button::State::new(),
-//         }
-//     }
-// }
-
 #[derive(Debug, Clone)]
 pub struct ImageData {
     content: ImageType,
     path: PathBuf,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Status {
+    Loading,
+    Ok,
+    Errored(Error),
 }
 
 #[derive(Debug, Clone)]
@@ -53,78 +54,92 @@ impl Component for ImageBox {
     type Message = ImageBoxMessage;
 
     fn new(flags: &mut Flags) -> (ImageBox, Command<ImageBoxMessage>) {
-        (
-            ImageBox {
-                buttons: Buttons::default(),
-                images: vec![],
-                current: 0,
-                loading: false,
-            },
-            Command::perform(
-                open(flags.env_args[1..].to_vec(), false),
+        let mut image_box = ImageBox {
+            buttons: Buttons::default(),
+            images: vec![],
+            current: 0,
+            status: Status::Loading,
+        };
+        let command = match flags.user_settings.try_borrow() {
+            Ok(us) => Command::perform(
+                open(flags.env_args[1..].to_vec(), us.automatic_load),
                 ImageBoxMessage::ImageLoaded,
             ),
-        )
+            Err(e) => {
+                image_box.status = Status::Errored(e.into());
+                Command::none()
+            }
+        };
+        (image_box, command)
     }
 
-    fn view(&mut self, settings: &UserSettings) -> Element<ImageBoxMessage> {
+    fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<ImageBoxMessage> {
         let mut basic_layout = Row::new()
             .width(Length::FillPortion(5))
             .height(Length::Fill)
             .padding(20);
-        if self.loading {
-            return basic_layout.push(Text::new("Loading...")).into();
-        }
-        if self.images.is_empty() {
-            basic_layout
-                .push(
-                    entry(&mut self.buttons.open_image, "Open an image")
-                        .on_press(ImageBoxMessage::PickImage(file_dialog::DialogType::File)),
-                )
-                .push(
-                    entry(&mut self.buttons.open_dir, "Directory")
-                        .on_press(ImageBoxMessage::PickImage(file_dialog::DialogType::Dir)),
-                )
-                .into()
-        } else {
-            basic_layout = basic_layout.push(
-                navigator(&mut self.buttons.previous, "<")
-                    .on_press(ImageBoxMessage::Navigate(Navigate::Previous)),
-            );
-            match &mut self.images[self.current].content {
-                ImageType::Bitmap(image, state) => {
-                    basic_layout = basic_layout
+        match self.status {
+            Status::Loading => basic_layout.push(Text::new("Loading...")).into(),
+            Status::Ok => {
+                if self.images.is_empty() {
+                    basic_layout
                         .push(
-                            image::Viewer::new(state, image.clone())
-                                .width(Length::Fill)
-                                .height(Length::Fill),
+                            entry(&mut self.buttons.open_image, "Open an image")
+                                .on_press(ImageBoxMessage::PickImage(DialogType::File)),
+                        )
+                        .push(
+                            entry(&mut self.buttons.open_dir, "Directory")
+                                .on_press(ImageBoxMessage::PickImage(DialogType::Dir)),
                         )
                         .into()
+                } else {
+                    basic_layout = basic_layout.push(column_with_blanks(
+                        navigator(&mut self.buttons.previous, "<")
+                            .on_press(ImageBoxMessage::Navigate(Navigate::Previous)),
+                        1,
+                        1,
+                    ));
+                    match &mut self.images[self.current].content {
+                        ImageType::Bitmap(image, state) => {
+                            basic_layout = basic_layout
+                                .push(
+                                    image::Viewer::new(state, image.clone())
+                                        .width(Length::Fill)
+                                        .height(Length::Fill),
+                                )
+                                .into()
+                        }
+                        ImageType::Vector(image) => basic_layout = basic_layout.push(image.clone()),
+                    }
+                    basic_layout
+                        .push(column_with_blanks(
+                            navigator(&mut self.buttons.next, ">")
+                                .on_press(ImageBoxMessage::Navigate(Navigate::Next)),
+                            1,
+                            1,
+                        ))
+                        .into()
                 }
-                ImageType::Vector(image) => basic_layout = basic_layout.push(image.clone()),
             }
-            basic_layout
-                .push(
-                    navigator(&mut self.buttons.next, ">")
-                        .on_press(ImageBoxMessage::Navigate(Navigate::Next)),
-                )
-                .into()
+            Status::Errored(e) => Row::new().push(Text::new(e.explain())).into(),
         }
     }
 
     fn update(
         &mut self,
         message: ImageBoxMessage,
-        settings: &mut UserSettings,
+        settings: Rc<RefCell<UserSettings>>,
     ) -> Command<ImageBoxMessage> {
         match message {
-            ImageBoxMessage::ImageLoaded(opt) => match opt {
-                Some((images, current)) => {
-                    self.images = images.clone();
-                    self.current = current;
-                    self.loading = false;
+            ImageBoxMessage::ImageLoaded(res) => match res {
+                Ok((mut images, current)) => {
+                    self.current = current + self.images.len();
+                    self.images.append(&mut images);
+                    self.status = Status::Ok;
                 }
-                None => {}
+                Err(e) => {
+                    self.status = Status::Errored(e.into());
+                }
             },
             ImageBoxMessage::CloseImage { whole } => {
                 if whole {
@@ -145,11 +160,16 @@ impl Component for ImageBox {
             }
             ImageBoxMessage::PickImage(dp) => match pick_in_dialog(dp) {
                 Some(path) => {
-                    self.loading = true;
-                    return Command::perform(
-                        open(vec![path], settings.automatic_load),
-                        ImageBoxMessage::ImageLoaded,
-                    );
+                    self.status = Status::Loading;
+                    match settings.try_borrow() {
+                        Ok(settings) => {
+                            return Command::perform(
+                                open(vec![path], settings.automatic_load),
+                                ImageBoxMessage::ImageLoaded,
+                            );
+                        }
+                        Err(e) => self.status = Status::Errored(e.into()),
+                    }
                 }
                 None => {}
             },
@@ -175,11 +195,11 @@ impl ImageBox {
     }
 }
 
-fn pick_in_dialog(dialog_type: file_dialog::DialogType) -> Option<file_dialog::PathBuf> {
-    file_dialog::pick(dialog_type)
-}
-
-pub async fn open(path: Vec<PathBuf>, automatical_load: bool) -> Option<(Vec<ImageData>, usize)> {
+//FIXME:由于iced内部Event:window，对应的FileDropped事件，每一次只有一个path，也就是说，尽管多选的时候是有序的，放进去的时候顺序却是随机的
+pub async fn open(
+    path: Vec<PathBuf>,
+    automatic_load: bool,
+) -> Result<(Vec<ImageData>, usize), Error> {
     //要处理两个情况，
     //1：用户使用按钮打开文件或者文件夹，目前还只能打开单个文件/文件夹
     //2：用户使用拖拽方式打开，这时可能有多个路径需要处理
@@ -187,16 +207,21 @@ pub async fn open(path: Vec<PathBuf>, automatical_load: bool) -> Option<(Vec<Ima
     let mut images = vec![];
     let mut current = 0;
     for p in path {
-        if p.is_dir() || automatical_load {
+        if p.is_dir() || automatic_load {
             let picked = p.clone();
             let parent;
             if p.is_dir() {
                 parent = p.as_path();
             } else {
-                parent = p.parent()?;
+                parent = match p.parent() {
+                    Some(pt) => pt,
+                    None => {
+                        return Err(Error::ReadFileError);
+                    }
+                };
             }
 
-            for entry in parent.read_dir().expect("failed to read") {
+            for entry in parent.read_dir()? {
                 match entry {
                     Ok(d) => {
                         let path = d.path();
@@ -219,7 +244,7 @@ pub async fn open(path: Vec<PathBuf>, automatical_load: bool) -> Option<(Vec<Ima
             };
         }
     }
-    Some((images, current))
+    Ok((images, current))
 }
 
 fn get_image_data_by_extension(path: PathBuf) -> Option<ImageData> {
@@ -251,7 +276,6 @@ pub enum Navigate {
 
 fn navigator<'a>(state: &'a mut button::State, text: &str) -> Button<'a, ImageBoxMessage> {
     Button::new(state, Text::new(text))
-        .height(Length::Fill)
         .padding(10)
         .style(style::Button::Navigator)
 }

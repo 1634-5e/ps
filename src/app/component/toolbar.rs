@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use super::Component;
 
 use crate::{
@@ -35,7 +37,7 @@ impl Component for ToolBar {
         )
     }
 
-    fn view(&mut self, settings: &UserSettings) -> Element<MainPageMessage> {
+    fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<MainPageMessage> {
         let settings_button = row_with_blanks(
             Row::new().align_items(Alignment::Center).push(
                 entry(&mut self.settings, "settings").on_press(MainPageMessage::GoToSettings),
@@ -61,7 +63,7 @@ impl Component for ToolBar {
     fn update(
         &mut self,
         message: Self::Message,
-        settings: &mut UserSettings,
+        settings: Rc<RefCell<UserSettings>>,
     ) -> Command<MainPageMessage> {
         Command::none()
     }
