@@ -9,13 +9,16 @@ use super::Component;
 use crate::app::error::Error;
 use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
-use crate::common::button::entry;
+use crate::common::button::{entry, navigator};
 use crate::common::custom_element::column_with_blanks;
 use crate::common::style;
 
 // 展示图片以及未来的编辑区域
 //因为toolbar触发的事件经常会跟imagebox里的东西相关，所以在考虑是否合并
-#[derive(Debug, Clone)]
+
+//使用iced-widget-canvas，只需要一个struct、impl canvas
+//参照bezier_tool example
+#[derive(Debug)]
 pub struct ImageBox {
     buttons: Buttons,
     images: Vec<ImageData>,
@@ -40,7 +43,7 @@ pub struct ImageData {
 #[derive(Debug, Clone, Copy)]
 enum Status {
     Loading,
-    Ok,
+    View,
     Errored(Error),
 }
 
@@ -80,7 +83,7 @@ impl Component for ImageBox {
             .padding(20);
         match self.status {
             Status::Loading => basic_layout.push(Text::new("Loading...")).into(),
-            Status::Ok => {
+            Status::View => {
                 if self.images.is_empty() {
                     basic_layout
                         .push(
@@ -135,26 +138,12 @@ impl Component for ImageBox {
                 Ok((mut images, current)) => {
                     self.current = current + self.images.len();
                     self.images.append(&mut images);
-                    self.status = Status::Ok;
+                    self.status = Status::View;
                 }
                 Err(e) => {
                     self.status = Status::Errored(e.into());
                 }
             },
-            ImageBoxMessage::CloseImage { whole } => {
-                if whole {
-                    self.images.clear();
-                } else {
-                    if self.current < self.images.len() {
-                        self.images.remove(self.current);
-                    }
-                }
-                if self.images.is_empty() {
-                    self.current = 0;
-                } else {
-                    self.current = self.current % self.images.len();
-                }
-            }
             ImageBoxMessage::Navigate(n) => {
                 self.navigate(n);
             }
@@ -192,6 +181,22 @@ impl ImageBox {
                 self.current %= len;
             }
         }
+    }
+
+    pub fn close_this(&mut self) {
+        if self.current < self.images.len() {
+            self.images.remove(self.current);
+        }
+        if self.images.is_empty() {
+            self.current = 0;
+        } else {
+            self.current = self.current % self.images.len();
+        }
+    }
+
+    pub fn close_all(&mut self) {
+        self.images.clear();
+        self.current = 0;
     }
 }
 
@@ -272,10 +277,4 @@ fn get_image_data_by_extension(path: PathBuf) -> Option<ImageData> {
 pub enum Navigate {
     Previous,
     Next,
-}
-
-fn navigator<'a>(state: &'a mut button::State, text: &str) -> Button<'a, ImageBoxMessage> {
-    Button::new(state, Text::new(text))
-        .padding(10)
-        .style(style::Button::Navigator)
 }

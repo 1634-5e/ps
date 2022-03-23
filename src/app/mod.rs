@@ -11,12 +11,13 @@ pub mod error;
 mod file_dialog;
 pub mod message;
 pub mod page;
+mod utils;
 
 use component::image_box::open;
 use message::{MainPageMessage, Message, UserSettingsMessage};
 use page::{MainPage, Page, UserSettingsPage};
 
-use self::message::ImageBoxMessage;
+use self::message::{ImageBoxMessage, ToolBarMessage};
 
 pub struct Ps {
     main_page: MainPage,
@@ -77,7 +78,9 @@ impl Application for Ps {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::MainPageMessage(mm) => match mm {
-                MainPageMessage::GoToSettings => self.current = CurrentPage::UserSettingsPage,
+                MainPageMessage::ToolBarMessage(ToolBarMessage::GoToSettings) => {
+                    self.current = CurrentPage::UserSettingsPage
+                }
                 _ => {
                     return self
                         .main_page

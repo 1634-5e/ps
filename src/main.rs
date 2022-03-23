@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use app::{Flags, Ps, UserSettings};
 
 use iced::{Application, Settings};
@@ -17,6 +19,7 @@ pub fn main() -> iced::Result {
             env_args,
             user_settings,
         },
+        antialiasing: true,
         ..Settings::default()
     })
 }
