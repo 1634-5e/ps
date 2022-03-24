@@ -3,35 +3,32 @@ use std::{cell::RefCell, rc::Rc};
 use super::Component;
 
 use crate::{
-    app::{
-        message::{ImageBoxMessage, MainPageMessage, ToolBarMessage},
-        Flags, UserSettings,
-    },
+    app::{message::ToolBarMessage, Flags, UserSettings},
     common::{
         button::{entry, toolbar},
         custom_element::row_with_blanks,
     },
 };
-use iced::{button, Alignment, Column, Command, Element, Length, Row};
+use iced::{button::State, Alignment, Column, Command, Element, Length, Row};
 
 //这里面按钮绑定的事件比较宽泛，所以内联的message是主页的
 //TODO:像close这种按钮需要有禁用的情况，目前貌似不自带，得自己手动实现。。
 #[derive(Debug, Clone, Default)]
 pub struct ToolBar {
-    close_this: button::State,
-    close_all: button::State,
-    new: button::State,
-    pub settings: button::State,
+    close_this: State,
+    close_all: State,
+    new: State,
+    pub settings: State,
 }
 
 impl Component for ToolBar {
     type Message = ToolBarMessage;
 
-    fn new(flags: &mut Flags) -> (ToolBar, Command<Self::Message>) {
+    fn new(_flags: &mut Flags) -> (ToolBar, Command<Self::Message>) {
         (ToolBar::default(), Command::none())
     }
 
-    fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<Self::Message> {
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<Self::Message> {
         let settings_button = row_with_blanks(
             Row::new()
                 .align_items(Alignment::Center)
@@ -61,8 +58,8 @@ impl Component for ToolBar {
 
     fn update(
         &mut self,
-        message: Self::Message,
-        settings: Rc<RefCell<UserSettings>>,
+        _message: Self::Message,
+        _settings: Rc<RefCell<UserSettings>>,
     ) -> Command<Self::Message> {
         Command::none()
     }

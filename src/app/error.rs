@@ -7,13 +7,13 @@ pub enum Error {
 }
 
 impl From<BorrowError> for Error {
-    fn from(be: BorrowError) -> Error {
+    fn from(_be: BorrowError) -> Error {
         Error::GetSettingsError
     }
 }
 
 impl From<std::io::Error> for Error {
-    fn from(ie: std::io::Error) -> Error {
+    fn from(_ie: std::io::Error) -> Error {
         Error::ReadFileError
     }
 }

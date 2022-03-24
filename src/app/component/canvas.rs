@@ -1,45 +1,62 @@
+use std::{cell::RefCell, rc::Rc};
+
 use iced::{
     button::State as ButtonState,
-    canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
+    canvas::{
+        event::{self, Event},
+        path::Builder,
+    },
     mouse, Alignment, Button, Column, Command, Element, Length, Point, Rectangle, Text,
 };
 
-use crate::app::message::CanvasMessage as Message;
-use crate::app::utils::get_size;
+use crate::app::{message::CanvasMessage, Flags};
+use crate::app::{utils::get_size, UserSettings};
+
+use super::Component;
 
 #[derive(Default)]
 pub struct Canvas {
-    rect: State,
+    state: State,
     curves: Vec<Curve>,
     button_state: ButtonState,
 }
 
-impl Canvas {
-    pub fn update(&mut self, message: Message) -> Command<Message> {
+impl Component for Canvas {
+    type Message = CanvasMessage;
+
+    fn new(_flags: &mut Flags) -> (Self, Command<Self::Message>) {
+        (Canvas::default(), Command::none())
+    }
+
+    fn update(
+        &mut self,
+        message: CanvasMessage,
+        _settings: Rc<RefCell<UserSettings>>,
+    ) -> Command<CanvasMessage> {
         match message {
-            Message::AddCurve(curve) => {
+            CanvasMessage::AddCurve(curve) => {
                 self.curves.push(curve);
-                self.rect.request_redraw();
+                self.state.request_redraw();
             }
-            Message::Clear => {
-                self.rect = State::default();
+            CanvasMessage::Clear => {
+                self.state = State::default();
                 self.curves.clear();
             }
         }
         Command::none()
     }
 
-    pub fn view(&mut self) -> Element<Message> {
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<CanvasMessage> {
         Column::new()
             .padding(20)
             .spacing(20)
             .align_items(Alignment::Center)
-            .push(self.rect.view(&self.curves).map(Message::AddCurve))
+            .push(self.state.view(&self.curves).map(CanvasMessage::AddCurve))
             .push(
                 Button::new(&mut self.button_state, Text::new("Clear"))
                     .padding(8)
-                    .on_press(Message::Clear),
+                    .on_press(CanvasMessage::Clear),
             )
             .into()
     }
@@ -47,13 +64,50 @@ impl Canvas {
 
 #[derive(Default)]
 pub struct State {
-    pending: Option<Pending>,
+    curve: Curve,
     cache: canvas::Cache,
 }
 
 impl State {
+    pub fn update(&mut self, mouse_event: mouse::Event, new: Point) -> Option<Curve> {
+        match mouse_event {
+            mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                let labor: usize = self.curve.labor().into();
+                if self.curve.points.len() + 1 < labor {
+                    self.curve.points.push(new);
+                } else if self.curve.points.len() + 1 == labor {
+                    let mut curve = Curve::new(self.curve.kind);
+                    curve.points.append(&mut self.curve.points);
+                    curve.points.push(new);
+                    return Some(curve);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    pub fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Geometry {
+        let mut frame = Frame::new(bounds.size());
+
+        if let Some(cursor_position) = cursor.position_in(&bounds) {
+            let path = Path::new(|p| match self.curve.kind {
+                CurveKind::Rectangle => {
+                    if self.curve.points.len() == 1 {
+                        let top_left = self.curve.points[0];
+                        let right_bottom = cursor_position;
+                        p.rectangle(top_left, get_size(top_left, right_bottom));
+                    }
+                }
+            });
+            frame.stroke(&path, Stroke::default().with_width(2.0))
+        }
+
+        frame.into_geometry()
+    }
+
     pub fn view<'a>(&'a mut self, curves: &'a [Curve]) -> Element<'a, Curve> {
-        IcedCanvas::new(Rect {
+        IcedCanvas::new(Curves {
             state: self,
             curves,
         })
@@ -67,12 +121,12 @@ impl State {
     }
 }
 
-struct Rect<'a> {
+struct Curves<'a> {
     state: &'a mut State,
     curves: &'a [Curve],
 }
 
-impl<'a> canvas::Program<Curve> for Rect<'a> {
+impl<'a> canvas::Program<Curve> for Curves<'a> {
     fn update(
         &mut self,
         event: Event,
@@ -86,33 +140,10 @@ impl<'a> canvas::Program<Curve> for Rect<'a> {
         };
 
         match event {
-            Event::Mouse(mouse_event) => {
-                let message = match mouse_event {
-                    mouse::Event::ButtonPressed(mouse::Button::Left) => match self.state.pending {
-                        None | Some(Pending::Two { from: _, to: _ }) => {
-                            self.state.pending = Some(Pending::One {
-                                from: cursor_position,
-                            });
-
-                            None
-                        }
-                        Some(Pending::One { from }) => {
-                            self.state.pending = Some(Pending::Two {
-                                from,
-                                to: cursor_position,
-                            });
-
-                            Some(Curve {
-                                from,
-                                to: cursor_position,
-                            })
-                        }
-                    },
-                    _ => None,
-                };
-
-                (event::Status::Captured, message)
-            }
+            Event::Mouse(mouse_event) => (
+                event::Status::Captured,
+                self.state.update(mouse_event, cursor_position),
+            ),
             _ => (event::Status::Ignored, None),
         }
     }
@@ -127,13 +158,9 @@ impl<'a> canvas::Program<Curve> for Rect<'a> {
             );
         });
 
-        if let Some(pending) = &self.state.pending {
-            let pending_curve = pending.draw(bounds, cursor);
+        let pending_curve = self.state.draw(bounds, cursor);
 
-            vec![content, pending_curve]
-        } else {
-            vec![content]
-        }
+        vec![content, pending_curve]
     }
 
     fn mouse_interaction(&self, bounds: Rectangle, cursor: Cursor) -> mouse::Interaction {
@@ -145,49 +172,51 @@ impl<'a> canvas::Program<Curve> for Rect<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
+pub enum CurveKind {
+    #[default]
+    Rectangle,
+}
+
+#[derive(Default, Debug, Clone)]
 pub struct Curve {
-    from: Point,
-    to: Point,
+    points: Vec<Point>,
+    kind: CurveKind,
 }
 
 impl Curve {
+    pub fn new(kind: CurveKind) -> Self {
+        Curve {
+            points: vec![],
+            kind,
+        }
+    }
+
+    pub fn labor(&self) -> u16 {
+        match self.kind {
+            CurveKind::Rectangle => 2,
+        }
+    }
+
+    #[inline(always)]
+    pub fn draw(curve: &Curve, builder: &mut Builder) {
+        assert!(curve.points.len() == curve.labor().into());
+        match curve.kind {
+            CurveKind::Rectangle => {
+                if let [top_left, right_bottom] = curve.points[..] {
+                    builder.rectangle(top_left, get_size(top_left, right_bottom));
+                }
+            }
+        }
+    }
+
     fn draw_all(curves: &[Curve], frame: &mut Frame) {
         let curves = Path::new(|p| {
             for curve in curves {
-                p.rectangle(curve.from, get_size(curve.from, curve.to));
+                Curve::draw(curve, p);
             }
         });
 
         frame.stroke(&curves, Stroke::default().with_width(2.0));
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Pending {
-    One { from: Point },
-    Two { from: Point, to: Point },
-}
-
-impl Pending {
-    fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Geometry {
-        let mut frame = Frame::new(bounds.size());
-
-        if let Some(cursor_position) = cursor.position_in(&bounds) {
-            match *self {
-                Pending::One { from } => {
-                    let line = Path::rectangle(from, get_size(from, cursor_position));
-                    frame.stroke(&line, Stroke::default().with_width(2.0));
-                    let curve = Curve {
-                        from,
-                        to: cursor_position,
-                    };
-                    Curve::draw_all(&[curve], &mut frame);
-                }
-                _ => {}
-            };
-        }
-
-        frame.into_geometry()
     }
 }

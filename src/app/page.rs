@@ -75,7 +75,10 @@ impl Page for MainPage {
                 .image_box
                 .view(settings.clone())
                 .map(MainPageMessage::ImageBoxMessage),
-            MainContent::Edit => self.canvas.view().map(MainPageMessage::CanvasMessage),
+            MainContent::Edit => self
+                .canvas
+                .view(settings.clone())
+                .map(MainPageMessage::CanvasMessage),
         };
 
         let view_picker = Row::new()
@@ -111,11 +114,14 @@ impl Page for MainPage {
             MainPageMessage::ToolBarMessage(tm) => match tm {
                 ToolBarMessage::CloseThis => self.image_box.close_this(),
                 ToolBarMessage::CloseAll => self.image_box.close_all(),
-                ToolBarMessage::New => {self.current = MainContent::Edit},
+                ToolBarMessage::New => self.current = MainContent::Edit,
                 ToolBarMessage::GoToSettings => {}
             },
             MainPageMessage::CanvasMessage(cm) => {
-                return self.canvas.update(cm).map(MainPageMessage::CanvasMessage)
+                return self
+                    .canvas
+                    .update(cm, settings.clone())
+                    .map(MainPageMessage::CanvasMessage)
             }
         }
         Command::none()
@@ -129,7 +135,7 @@ pub struct UserSettingsPage {
 impl Page for UserSettingsPage {
     type Message = UserSettingsMessage;
 
-    fn new(flags: &mut Flags) -> (UserSettingsPage, Command<UserSettingsMessage>) {
+    fn new(_flags: &mut Flags) -> (UserSettingsPage, Command<UserSettingsMessage>) {
         (
             UserSettingsPage {
                 back: button::State::new(),

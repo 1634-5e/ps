@@ -1,4 +1,5 @@
-#![allow(unused)]
+// #![allow(unused)]
+#![feature(derive_default_enum)]
 
 use app::{Flags, Ps, UserSettings};
 

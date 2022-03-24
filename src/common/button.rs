@@ -1,5 +1,5 @@
 use crate::app::message::ComponentMessage;
-use iced::{button, Button, Length, Text};
+use iced::{button, Button, Text};
 
 use super::style;
 

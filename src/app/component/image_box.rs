@@ -2,8 +2,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use iced::button::State;
-use iced::{button, image, Button, Command, Element, Length, Row, Svg, Text};
+use iced::{button, image, Command, Element, Length, Row, Svg, Text};
 
 use super::Component;
 use crate::app::error::Error;
@@ -11,7 +10,6 @@ use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
 use crate::common::button::{entry, navigator};
 use crate::common::custom_element::column_with_blanks;
-use crate::common::style;
 
 // 展示图片以及未来的编辑区域
 //因为toolbar触发的事件经常会跟imagebox里的东西相关，所以在考虑是否合并
@@ -26,7 +24,7 @@ pub struct ImageBox {
     status: Status,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Buttons {
     open_image: button::State,
     open_dir: button::State,
@@ -40,8 +38,9 @@ pub struct ImageData {
     path: PathBuf,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 enum Status {
+    #[default]
     Loading,
     View,
     Errored(Error),
@@ -76,7 +75,7 @@ impl Component for ImageBox {
         (image_box, command)
     }
 
-    fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<ImageBoxMessage> {
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<ImageBoxMessage> {
         let mut basic_layout = Row::new()
             .width(Length::FillPortion(5))
             .height(Length::Fill)

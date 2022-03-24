@@ -56,7 +56,7 @@ impl ComponentMessage for ToolBarMessage {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum CanvasMessage {
     AddCurve(Curve),
     Clear,
