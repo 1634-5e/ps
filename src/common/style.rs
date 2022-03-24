@@ -22,4 +22,19 @@ impl button::StyleSheet for Button {
             },
         }
     }
+
+    fn disabled(&self) -> button::Style {
+        match self {
+            Button::Toolbar => button::Style {
+                background: Some(Background::Color(Color::TRANSPARENT)),
+                ..button::Style::default()
+            },
+            Button::Navigator => button::Style::default(),
+            Button::PickImage => button::Style {
+                background: Some(Background::Color(Color::TRANSPARENT)),
+                shadow_offset: Vector::new(1.0, 1.0),
+                ..button::Style::default()
+            },
+        }
+    }
 }

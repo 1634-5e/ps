@@ -17,7 +17,7 @@ use super::Component;
 
 #[derive(Default)]
 pub struct Canvas {
-    state: State,
+    pub pending: Pending,
     curves: Vec<Curve>,
     button_state: ButtonState,
 }
@@ -37,10 +37,10 @@ impl Component for Canvas {
         match message {
             CanvasMessage::AddCurve(curve) => {
                 self.curves.push(curve);
-                self.state.request_redraw();
+                self.pending.request_redraw();
             }
             CanvasMessage::Clear => {
-                self.state = State::default();
+                self.pending = Pending::default();
                 self.curves.clear();
             }
         }
@@ -49,10 +49,11 @@ impl Component for Canvas {
 
     fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<CanvasMessage> {
         Column::new()
+            .width(Length::FillPortion(5))
             .padding(20)
             .spacing(20)
             .align_items(Alignment::Center)
-            .push(self.state.view(&self.curves).map(CanvasMessage::AddCurve))
+            .push(self.pending.view(&self.curves).map(CanvasMessage::AddCurve))
             .push(
                 Button::new(&mut self.button_state, Text::new("Clear"))
                     .padding(8)
@@ -63,12 +64,12 @@ impl Component for Canvas {
 }
 
 #[derive(Default)]
-pub struct State {
+pub struct Pending {
     curve: Curve,
     cache: canvas::Cache,
 }
 
-impl State {
+impl Pending {
     pub fn update(&mut self, mouse_event: mouse::Event, new: Point) -> Option<Curve> {
         match mouse_event {
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
@@ -92,7 +93,7 @@ impl State {
 
         if let Some(cursor_position) = cursor.position_in(&bounds) {
             let path = Path::new(|p| match self.curve.kind {
-                CurveKind::Rectangle => {
+                ShapeKind::Rectangle => {
                     if self.curve.points.len() == 1 {
                         let top_left = self.curve.points[0];
                         let right_bottom = cursor_position;
@@ -119,10 +120,17 @@ impl State {
     pub fn request_redraw(&mut self) {
         self.cache.clear()
     }
+
+    pub fn change_shape(&mut self, s: ShapeKind) {
+        self.curve = Curve {
+            points: vec![],
+            kind: s,
+        };
+    }
 }
 
 struct Curves<'a> {
-    state: &'a mut State,
+    state: &'a mut Pending,
     curves: &'a [Curve],
 }
 
@@ -172,8 +180,8 @@ impl<'a> canvas::Program<Curve> for Curves<'a> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub enum CurveKind {
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShapeKind {
     #[default]
     Rectangle,
 }
@@ -181,11 +189,11 @@ pub enum CurveKind {
 #[derive(Default, Debug, Clone)]
 pub struct Curve {
     points: Vec<Point>,
-    kind: CurveKind,
+    kind: ShapeKind,
 }
 
 impl Curve {
-    pub fn new(kind: CurveKind) -> Self {
+    pub fn new(kind: ShapeKind) -> Self {
         Curve {
             points: vec![],
             kind,
@@ -194,7 +202,7 @@ impl Curve {
 
     pub fn labor(&self) -> u16 {
         match self.kind {
-            CurveKind::Rectangle => 2,
+            ShapeKind::Rectangle => 2,
         }
     }
 
@@ -202,7 +210,7 @@ impl Curve {
     pub fn draw(curve: &Curve, builder: &mut Builder) {
         assert!(curve.points.len() == curve.labor().into());
         match curve.kind {
-            CurveKind::Rectangle => {
+            ShapeKind::Rectangle => {
                 if let [top_left, right_bottom] = curve.points[..] {
                     builder.rectangle(top_left, get_size(top_left, right_bottom));
                 }

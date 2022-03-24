@@ -116,6 +116,10 @@ impl Page for MainPage {
                 ToolBarMessage::CloseAll => self.image_box.close_all(),
                 ToolBarMessage::New => self.current = MainContent::Edit,
                 ToolBarMessage::GoToSettings => {}
+                ToolBarMessage::ShapeChanged(s) => {
+                    self.canvas.pending.change_shape(s);
+                    self.toolbar.pick_shape(s);
+                }
             },
             MainPageMessage::CanvasMessage(cm) => {
                 return self

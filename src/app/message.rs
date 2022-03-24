@@ -1,4 +1,4 @@
-use super::component::canvas::Curve;
+use super::component::canvas::{Curve, ShapeKind};
 use super::component::image_box::{ImageData, Navigate};
 use super::error::Error;
 use super::file_dialog::DialogType;
@@ -48,6 +48,7 @@ pub enum ToolBarMessage {
     CloseAll,
     New,
     GoToSettings,
+    ShapeChanged(ShapeKind),
 }
 
 impl ComponentMessage for ToolBarMessage {
