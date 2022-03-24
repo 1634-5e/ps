@@ -40,7 +40,8 @@ impl Component for Canvas {
                 self.pending.request_redraw();
             }
             CanvasMessage::Clear => {
-                self.pending = Pending::default();
+                self.pending.curve.points.clear();
+                self.pending.cache.clear();
                 self.curves.clear();
             }
         }
@@ -98,6 +99,18 @@ impl Pending {
                         let top_left = self.curve.points[0];
                         let right_bottom = cursor_position;
                         p.rectangle(top_left, get_size(top_left, right_bottom));
+                    }
+                }
+                ShapeKind::Triangle => {
+                    let len = self.curve.points.len();
+                    if len == 1 {
+                        p.move_to(self.curve.points[0]);
+                        p.line_to(cursor_position);
+                    } else if len == 2 {
+                        p.move_to(self.curve.points[0]);
+                        p.line_to(self.curve.points[1]);
+                        p.line_to(cursor_position);
+                        p.line_to(self.curve.points[0]);
                     }
                 }
             });
@@ -184,6 +197,7 @@ impl<'a> canvas::Program<Curve> for Curves<'a> {
 pub enum ShapeKind {
     #[default]
     Rectangle,
+    Triangle,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -203,6 +217,7 @@ impl Curve {
     pub fn labor(&self) -> u16 {
         match self.kind {
             ShapeKind::Rectangle => 2,
+            ShapeKind::Triangle => 3,
         }
     }
 
@@ -213,6 +228,14 @@ impl Curve {
             ShapeKind::Rectangle => {
                 if let [top_left, right_bottom] = curve.points[..] {
                     builder.rectangle(top_left, get_size(top_left, right_bottom));
+                }
+            }
+            ShapeKind::Triangle => {
+                if let [a, b, c] = curve.points[..] {
+                    builder.move_to(a);
+                    builder.line_to(b);
+                    builder.line_to(c);
+                    builder.line_to(a);
                 }
             }
         }

@@ -71,14 +71,15 @@ impl Component for ToolBar {
 
 impl ToolBar {
     pub fn pick_shape(&mut self, shape: ShapeKind) {
-        let index = match shape {
-            ShapeKind::Rectangle => 0,
-        };
-        assert!(index + 1 < self.shapes.choices.len());
-
-        self.shapes.choices[self.shapes.picked].enable();
-        self.shapes.choices[index].disable();
-        self.shapes.picked = index;
+        match self.shapes.picked {
+            ShapeKind::Rectangle => self.shapes.rect.enable(),
+            ShapeKind::Triangle => self.shapes.tria.enable(),
+        }
+        self.shapes.picked = shape;
+        match self.shapes.picked {
+            ShapeKind::Rectangle => self.shapes.rect.disable(),
+            ShapeKind::Triangle => self.shapes.tria.disable(),
+        }
     }
 }
 
@@ -120,24 +121,31 @@ impl ToolBarButton {
 
 #[derive(Debug, Clone)]
 pub struct Shapes {
-    choices: Vec<ToolBarButton>,
-    picked: usize,
+    rect: ToolBarButton,
+    tria: ToolBarButton,
+    picked: ShapeKind,
 }
 
 impl Shapes {
     pub fn new() -> Self {
         Shapes {
-            choices: vec![ToolBarButton::new(true)],
-            picked: 0,
+            rect: ToolBarButton::new(true),
+            tria: ToolBarButton::new(false),
+            picked: ShapeKind::Rectangle,
         }
     }
 
     pub fn view<'a>(&'a mut self) -> Row<'a, ToolBarMessage> {
         let shapes = Row::new();
 
-        shapes.push(self.choices[0].view(
-            "rectangle",
-            ToolBarMessage::ShapeChanged(ShapeKind::Rectangle),
-        ))
+        shapes
+            .push(self.rect.view(
+                "rectangle",
+                ToolBarMessage::ShapeChanged(ShapeKind::Rectangle),
+            ))
+            .push(self.tria.view(
+                "triangle",
+                ToolBarMessage::ShapeChanged(ShapeKind::Triangle),
+            ))
     }
 }
