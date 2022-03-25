@@ -19,3 +19,11 @@ pub fn pick(dialog_type: DialogType) -> Option<PathBuf> {
         DialogType::Dir => FileDialog::new().show_open_single_dir().unwrap(),
     }
 }
+
+pub fn save() -> Option<PathBuf> {
+    FileDialog::new()
+        .set_location("D://Desktop")
+        .add_filter("SVG Image", &["svg"])
+        .show_save_single_file()
+        .unwrap()
+}

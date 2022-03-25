@@ -61,6 +61,7 @@ impl ComponentMessage for ToolBarMessage {
 pub enum CanvasMessage {
     AddCurve(Curve),
     Clear,
+    Save,
 }
 
 impl ComponentMessage for CanvasMessage {

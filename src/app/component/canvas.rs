@@ -7,19 +7,24 @@ use iced::{
         event::{self, Event},
         path::Builder,
     },
-    mouse, Alignment, Button, Column, Command, Element, Length, Point, Rectangle, Text,
+    mouse, Alignment, Button, Column, Command, Element, Length, Point, Rectangle, Row, Text,
 };
 
-use crate::app::{message::CanvasMessage, Flags};
-use crate::app::{utils::get_size, UserSettings};
+use svg::node::element::path::Data;
+use svg::node::element::Path as SvgPath;
+use svg::Document;
 
 use super::Component;
+use crate::app::file_dialog::save as save_file;
+use crate::app::{message::CanvasMessage, Flags};
+use crate::app::{utils::get_size, UserSettings};
 
 #[derive(Default)]
 pub struct Canvas {
     pub pending: Pending,
     curves: Vec<Curve>,
-    button_state: ButtonState,
+    clear_button: ButtonState,
+    save_button: ButtonState,
 }
 
 impl Component for Canvas {
@@ -44,6 +49,7 @@ impl Component for Canvas {
                 self.pending.cache.clear();
                 self.curves.clear();
             }
+            CanvasMessage::Save => Curves::save(&self.curves),
         }
         Command::none()
     }
@@ -56,9 +62,17 @@ impl Component for Canvas {
             .align_items(Alignment::Center)
             .push(self.pending.view(&self.curves).map(CanvasMessage::AddCurve))
             .push(
-                Button::new(&mut self.button_state, Text::new("Clear"))
-                    .padding(8)
-                    .on_press(CanvasMessage::Clear),
+                Row::new()
+                    .push(
+                        Button::new(&mut self.clear_button, Text::new("Clear"))
+                            .padding(8)
+                            .on_press(CanvasMessage::Clear),
+                    )
+                    .push(
+                        Button::new(&mut self.save_button, Text::new("Save"))
+                            .padding(8)
+                            .on_press(CanvasMessage::Save),
+                    ),
             )
             .into()
     }
@@ -193,6 +207,26 @@ impl<'a> canvas::Program<Curve> for Curves<'a> {
     }
 }
 
+impl<'a> Curves<'a> {
+    fn save(curves: &'a [Curve]) {
+        if let Some(pathbuf) = save_file() {
+            let data = curves.iter().fold(Data::new(), |acc, x| x.save(acc));
+
+            dbg!(&data);
+
+            let path = SvgPath::new()
+                .set("fill", "none")
+                .set("stroke", "black")
+                .set("stroke-width", 3)
+                .set("d", data.close());
+
+            let document = Document::new().add(path);
+
+            svg::save(pathbuf, &document).unwrap();
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
     #[default]
@@ -249,5 +283,31 @@ impl Curve {
         });
 
         frame.stroke(&curves, Stroke::default().with_width(2.0));
+    }
+
+    #[inline(always)]
+    pub fn save(&self, data: Data) -> Data {
+        match self.kind {
+            ShapeKind::Rectangle => {
+                assert!(self.points.len() == 2);
+                let Point { x: x1, y: y1 } = self.points[0];
+                let Point { x: x2, y: y2 } = self.points[1];
+                data.move_to((x1, y1))
+                    .line_to((x2, y1))
+                    .line_to((x2, y2))
+                    .line_to((x1, y2))
+                    .line_to((x1, y1))
+            }
+            ShapeKind::Triangle => {
+                assert!(self.points.len() == 3);
+                let Point { x: ax, y: ay } = self.points[0];
+                let Point { x: bx, y: by } = self.points[1];
+                let Point { x: cx, y: cy } = self.points[2];
+                data.move_to((ax, ay))
+                    .line_to((bx, by))
+                    .line_to((cx, cy))
+                    .line_to((ax, ay))
+            }
+        }
     }
 }

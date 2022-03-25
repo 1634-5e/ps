@@ -9,7 +9,7 @@ edition = "2021"
 lto = true
 codegen-units = 1
 panic = "abort"
-opt-level = "z" 
+opt-level = "z"
 
 [dependencies]
 iced = { git = "https://github.com/iced-rs/iced", features = [
@@ -19,6 +19,7 @@ iced = { git = "https://github.com/iced-rs/iced", features = [
     "svg",
     "canvas",
 ] }
-iced_native = {git = "https://github.com/iced-rs/iced"}
+iced_native = { git = "https://github.com/iced-rs/iced" }
 
 native-dialog = "0.6.2"
+svg = "0.10.0"
