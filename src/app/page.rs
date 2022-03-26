@@ -12,7 +12,7 @@ use crate::common::style;
 use super::component::canvas::Canvas;
 use super::component::Component;
 use super::error::Error;
-use super::message::ToolBarMessage;
+use super::message::{CanvasMessage, ToolBarMessage};
 use super::Flags;
 
 pub trait Page: Sized {
@@ -47,7 +47,7 @@ impl Page for MainPage {
     fn new(flags: &mut Flags) -> (MainPage, Command<MainPageMessage>) {
         let (image_box, c) = ImageBox::new(flags);
         let (toolbar, _) = ToolBar::new(flags);
-        let canvas = Canvas::default();
+        let canvas = Canvas::new(flags).0;
         (
             MainPage {
                 image_box,
@@ -114,19 +114,22 @@ impl Page for MainPage {
             MainPageMessage::ToolBarMessage(tm) => match tm {
                 ToolBarMessage::CloseThis => self.image_box.close_this(),
                 ToolBarMessage::CloseAll => self.image_box.close_all(),
-                ToolBarMessage::New => self.current = MainContent::Edit,
+                ToolBarMessage::Edit => self.current = MainContent::Edit,
                 ToolBarMessage::GoToSettings => {}
                 ToolBarMessage::ShapeChanged(s) => {
                     self.canvas.pending.change_shape(s);
                     self.toolbar.pick_shape(s);
                 }
             },
-            MainPageMessage::CanvasMessage(cm) => {
-                return self
-                    .canvas
-                    .update(cm, settings.clone())
-                    .map(MainPageMessage::CanvasMessage)
-            }
+            MainPageMessage::CanvasMessage(cm) => match cm {
+                CanvasMessage::Back => self.current = MainContent::View,
+                _ => {
+                    return self
+                        .canvas
+                        .update(cm, settings.clone())
+                        .map(MainPageMessage::CanvasMessage)
+                }
+            },
         }
         Command::none()
     }

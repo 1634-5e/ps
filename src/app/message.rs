@@ -46,7 +46,7 @@ impl ComponentMessage for ImageBoxMessage {
 pub enum ToolBarMessage {
     CloseThis,
     CloseAll,
-    New,
+    Edit,
     GoToSettings,
     ShapeChanged(ShapeKind),
 }
@@ -62,6 +62,7 @@ pub enum CanvasMessage {
     AddCurve(Curve),
     Clear,
     Save,
+    Back,
 }
 
 impl ComponentMessage for CanvasMessage {

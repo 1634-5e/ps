@@ -39,7 +39,7 @@ impl Component for ToolBar {
             .close_this
             .view("close this", ToolBarMessage::CloseThis);
         let close_all = self.close_all.view("close all", ToolBarMessage::CloseAll);
-        let new = self.new.view("new", ToolBarMessage::New);
+        let new = self.new.view("edit", ToolBarMessage::Edit);
         let shapes = self.shapes.view();
 
         Row::new()

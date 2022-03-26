@@ -2,12 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use iced::{
     button::State as ButtonState,
+    canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    canvas::{
-        event::{self, Event},
-        path::Builder,
-    },
-    mouse, Alignment, Button, Column, Command, Element, Length, Point, Rectangle, Row, Text,
+    mouse, Alignment, Button, Color, Column, Command, Element, Length, Point, Rectangle, Row, Text,
 };
 
 use svg::node::element::path::Data;
@@ -19,19 +16,28 @@ use crate::app::file_dialog::save as save_file;
 use crate::app::{message::CanvasMessage, Flags};
 use crate::app::{utils::get_size, UserSettings};
 
-#[derive(Default)]
 pub struct Canvas {
     pub pending: Pending,
     curves: Vec<Curve>,
     clear_button: ButtonState,
     save_button: ButtonState,
+    back_button: ButtonState,
 }
 
 impl Component for Canvas {
     type Message = CanvasMessage;
 
     fn new(_flags: &mut Flags) -> (Self, Command<Self::Message>) {
-        (Canvas::default(), Command::none())
+        (
+            Canvas {
+                pending: Pending::new(),
+                curves: vec![],
+                clear_button: ButtonState::new(),
+                save_button: ButtonState::new(),
+                back_button: ButtonState::new(),
+            },
+            Command::none(),
+        )
     }
 
     fn update(
@@ -50,6 +56,7 @@ impl Component for Canvas {
                 self.curves.clear();
             }
             CanvasMessage::Save => Curves::save(&self.curves),
+            _ => {}
         }
         Command::none()
     }
@@ -63,6 +70,11 @@ impl Component for Canvas {
             .push(self.pending.view(&self.curves).map(CanvasMessage::AddCurve))
             .push(
                 Row::new()
+                    .push(
+                        Button::new(&mut self.back_button, Text::new("Back"))
+                            .padding(8)
+                            .on_press(CanvasMessage::Back),
+                    )
                     .push(
                         Button::new(&mut self.clear_button, Text::new("Clear"))
                             .padding(8)
@@ -78,26 +90,36 @@ impl Component for Canvas {
     }
 }
 
-#[derive(Default)]
 pub struct Pending {
     curve: Curve,
     cache: canvas::Cache,
 }
 
 impl Pending {
+    pub fn new() -> Self {
+        Pending {
+            curve: Curve::new(
+                ShapeKind::Rectangle,
+                Color::from_rgb(192.0, 122.0, 32.0),
+                1.0,
+            ),
+            cache: canvas::Cache::new(),
+        }
+    }
+
     pub fn update(&mut self, mouse_event: mouse::Event, new: Point) -> Option<Curve> {
         match mouse_event {
             mouse::Event::ButtonPressed(mouse::Button::Left) => {
                 let labor: usize = self.curve.labor().into();
-                if self.curve.points.len() + 1 < labor {
-                    self.curve.points.push(new);
-                } else if self.curve.points.len() + 1 == labor {
-                    let mut curve = Curve::new(self.curve.kind);
-                    curve.points.append(&mut self.curve.points);
-                    curve.points.push(new);
-                    return Some(curve);
+                self.curve.points.push(new);
+                if self.curve.points.len() == labor {
+                    Some(Curve {
+                        points: self.curve.points.drain(..).collect(),
+                        ..self.curve
+                    })
+                } else {
+                    None
                 }
-                None
             }
             _ => None,
         }
@@ -128,7 +150,14 @@ impl Pending {
                     }
                 }
             });
-            frame.stroke(&path, Stroke::default().with_width(2.0))
+            frame.stroke(
+                &path,
+                Stroke {
+                    width: self.curve.width,
+                    color: self.curve.color,
+                    ..Stroke::default()
+                },
+            )
         }
 
         frame.into_geometry()
@@ -136,7 +165,7 @@ impl Pending {
 
     pub fn view<'a>(&'a mut self, curves: &'a [Curve]) -> Element<'a, Curve> {
         IcedCanvas::new(Curves {
-            state: self,
+            pending: self,
             curves,
         })
         .width(Length::Fill)
@@ -149,15 +178,12 @@ impl Pending {
     }
 
     pub fn change_shape(&mut self, s: ShapeKind) {
-        self.curve = Curve {
-            points: vec![],
-            kind: s,
-        };
+        self.curve.kind = s;
     }
 }
 
 struct Curves<'a> {
-    state: &'a mut Pending,
+    pending: &'a mut Pending,
     curves: &'a [Curve],
 }
 
@@ -177,14 +203,14 @@ impl<'a> canvas::Program<Curve> for Curves<'a> {
         match event {
             Event::Mouse(mouse_event) => (
                 event::Status::Captured,
-                self.state.update(mouse_event, cursor_position),
+                self.pending.update(mouse_event, cursor_position),
             ),
             _ => (event::Status::Ignored, None),
         }
     }
 
     fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry> {
-        let content = self.state.cache.draw(bounds.size(), |frame: &mut Frame| {
+        let content = self.pending.cache.draw(bounds.size(), |frame: &mut Frame| {
             Curve::draw_all(self.curves, frame);
 
             frame.stroke(
@@ -193,7 +219,7 @@ impl<'a> canvas::Program<Curve> for Curves<'a> {
             );
         });
 
-        let pending_curve = self.state.draw(bounds, cursor);
+        let pending_curve = self.pending.draw(bounds, cursor);
 
         vec![content, pending_curve]
     }
@@ -211,8 +237,6 @@ impl<'a> Curves<'a> {
     fn save(curves: &'a [Curve]) {
         if let Some(pathbuf) = save_file() {
             let data = curves.iter().fold(Data::new(), |acc, x| x.save(acc));
-
-            dbg!(&data);
 
             let path = SvgPath::new()
                 .set("fill", "none")
@@ -234,17 +258,21 @@ pub enum ShapeKind {
     Triangle,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Curve {
     points: Vec<Point>,
     kind: ShapeKind,
+    color: Color,
+    width: f32,
 }
 
 impl Curve {
-    pub fn new(kind: ShapeKind) -> Self {
+    pub fn new(kind: ShapeKind, color: Color, width: f32) -> Self {
         Curve {
             points: vec![],
             kind,
+            color,
+            width,
         }
     }
 
@@ -256,9 +284,11 @@ impl Curve {
     }
 
     #[inline(always)]
-    pub fn draw(curve: &Curve, builder: &mut Builder) {
+    pub fn draw(curve: &Curve) -> Path {
+        println!("{:?}", curve.points);
+        println!("{:?}", curve.kind);
         assert!(curve.points.len() == curve.labor().into());
-        match curve.kind {
+        Path::new(|builder| match curve.kind {
             ShapeKind::Rectangle => {
                 if let [top_left, right_bottom] = curve.points[..] {
                     builder.rectangle(top_left, get_size(top_left, right_bottom));
@@ -272,17 +302,20 @@ impl Curve {
                     builder.line_to(a);
                 }
             }
-        }
+        })
     }
 
     fn draw_all(curves: &[Curve], frame: &mut Frame) {
-        let curves = Path::new(|p| {
-            for curve in curves {
-                Curve::draw(curve, p);
-            }
-        });
-
-        frame.stroke(&curves, Stroke::default().with_width(2.0));
+        for curve in curves {
+            frame.stroke(
+                &Curve::draw(curve),
+                Stroke {
+                    width: curve.width,
+                    color: curve.color,
+                    ..Stroke::default()
+                },
+            );
+        }
     }
 
     #[inline(always)]
