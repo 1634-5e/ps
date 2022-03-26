@@ -59,7 +59,7 @@ impl ComponentMessage for ToolBarMessage {
 
 #[derive(Debug, Clone)]
 pub enum CanvasMessage {
-    AddCurve(Curve),
+    CurvesMessage(CurvesMessage),
     Clear,
     Save,
     Back,
@@ -69,4 +69,10 @@ impl ComponentMessage for CanvasMessage {
     fn describe(&self) -> String {
         todo!()
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum CurvesMessage {
+    AddCurve(Curve),
+    SelectCurve(Option<usize>),
 }
