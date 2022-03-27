@@ -104,16 +104,13 @@ impl Component for ImageBox {
                         )
                         .into()
                 } else {
-                    basic_layout = basic_layout.push(
-                        column_with_blanks(
-                            self.buttons
-                                .previous
-                                .navigator("<", ImageBoxMessage::Navigate(Navigate::Previous)),
-                            1,
-                            1,
-                        )
-                        .width(Length::FillPortion(1)),
-                    );
+                    basic_layout = basic_layout.push(column_with_blanks(
+                        self.buttons
+                            .previous
+                            .navigator("<", ImageBoxMessage::Navigate(Navigate::Previous)),
+                        1,
+                        1,
+                    ));
 
                     let image_type = get_image_data_by_extension(&self.images[self.current]);
                     let image_column = match image_type {
@@ -137,7 +134,6 @@ impl Component for ImageBox {
                                 .align_items(Alignment::Center)
                         }
                     }
-                    //FIXME: 这里的左右间距不同，试了好几种方法都不行
                     .push(Text::new(format!(
                         "{} / {}",
                         self.current + 1,
@@ -146,16 +142,13 @@ impl Component for ImageBox {
 
                     basic_layout
                         .push(image_column)
-                        .push(
-                            column_with_blanks(
-                                self.buttons
-                                    .next
-                                    .navigator(">", ImageBoxMessage::Navigate(Navigate::Next)),
-                                1,
-                                1,
-                            )
-                            .width(Length::FillPortion(1)),
-                        )
+                        .push(column_with_blanks(
+                            self.buttons
+                                .next
+                                .navigator(">", ImageBoxMessage::Navigate(Navigate::Next)),
+                            1,
+                            1,
+                        ))
                         .into()
                 }
             }
