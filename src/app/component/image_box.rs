@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use iced::{button, image, Command, Element, Length, Row, Svg, Text};
+use iced::{button, image, Button, Command, Element, Length, Row, Svg, Text};
 
-use super::Component;
+use super::{Component, ToolbarButton};
 use crate::app::error::Error;
 use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
@@ -30,6 +30,9 @@ pub struct Buttons {
     open_dir: button::State,
     previous: button::State,
     next: button::State,
+    close_this: ToolbarButton,
+    close_all: ToolbarButton,
+    new: ToolbarButton,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +53,13 @@ enum Status {
 enum ImageType {
     Bitmap(image::Handle, image::viewer::State),
     Vector(Svg),
+}
+
+//TODO: 加入滚轮,用于切换图片
+#[derive(Debug, Clone)]
+pub enum Navigate {
+    Previous,
+    Next,
 }
 
 impl Component for ImageBox {
@@ -75,12 +85,15 @@ impl Component for ImageBox {
         (image_box, command)
     }
 
-    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<ImageBoxMessage> {
+    fn view(
+        &mut self,
+        _settings: Rc<RefCell<UserSettings>>,
+    ) -> (Element<ImageBoxMessage>, Element<ImageBoxMessage>) {
         let mut basic_layout = Row::new()
             .width(Length::FillPortion(5))
             .height(Length::Fill)
             .padding(20);
-        match self.status {
+        let main_content = match self.status {
             Status::Loading => basic_layout.push(Text::new("Loading...")).into(),
             Status::View => {
                 if self.images.is_empty() {
@@ -124,7 +137,20 @@ impl Component for ImageBox {
                 }
             }
             Status::Errored(e) => Row::new().push(Text::new(e.explain())).into(),
-        }
+        };
+
+        (
+            main_content,
+            Self::toolbar(
+                self.buttons
+                    .close_this
+                    .view("close this", ImageBoxMessage::CloseThis),
+                self.buttons
+                    .close_all
+                    .view("close all", ImageBoxMessage::CloseAll),
+                self.buttons.new.view("new", ImageBoxMessage::New),
+            ),
+        )
     }
 
     fn update(
@@ -161,6 +187,9 @@ impl Component for ImageBox {
                 }
                 None => {}
             },
+            ImageBoxMessage::CloseThis => self.close_this(),
+            ImageBoxMessage::CloseAll => self.close_all(),
+            _ => {}
         }
         Command::none()
     }
@@ -196,6 +225,20 @@ impl ImageBox {
     pub fn close_all(&mut self) {
         self.images.clear();
         self.current = 0;
+    }
+
+    pub fn toolbar<'a>(
+        close_this: Button<'a, ImageBoxMessage>,
+        close_all: Button<'a, ImageBoxMessage>,
+        new: Button<'a, ImageBoxMessage>,
+    ) -> Element<'a, ImageBoxMessage> {
+        Row::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(close_this)
+            .push(close_all)
+            .push(new)
+            .into()
     }
 }
 
@@ -269,11 +312,4 @@ fn get_image_data_by_extension(path: PathBuf) -> Option<ImageData> {
         });
     }
     None
-}
-
-//TODO: 加入滚轮,用于切换图片
-#[derive(Debug, Clone)]
-pub enum Navigate {
-    Previous,
-    Next,
 }

@@ -2,10 +2,11 @@ use super::component::canvas::{Curve, ShapeKind};
 use super::component::image_box::{ImageData, Navigate};
 use super::error::Error;
 use super::file_dialog::DialogType;
+use super::page::MainPage;
 
 use iced_native::Event;
 
-pub trait ComponentMessage {
+pub trait MessageType {
     fn describe(&self) -> String;
 }
 
@@ -18,9 +19,15 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum MainPageMessage {
-    ToolBarMessage(ToolBarMessage),
     ImageBoxMessage(ImageBoxMessage),
     CanvasMessage(CanvasMessage),
+    GoToSettings,
+}
+
+impl MessageType for MainPageMessage {
+    fn describe(&self) -> String {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,24 +41,12 @@ pub enum ImageBoxMessage {
     ImageLoaded(Result<(Vec<ImageData>, usize), Error>),
     PickImage(DialogType),
     Navigate(Navigate),
-}
-
-impl ComponentMessage for ImageBoxMessage {
-    fn describe(&self) -> String {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ToolBarMessage {
     CloseThis,
     CloseAll,
-    Edit,
-    GoToSettings,
-    ShapeChanged(ShapeKind),
+    New,
 }
 
-impl ComponentMessage for ToolBarMessage {
+impl MessageType for ImageBoxMessage {
     fn describe(&self) -> String {
         todo!()
     }
@@ -60,12 +55,13 @@ impl ComponentMessage for ToolBarMessage {
 #[derive(Debug, Clone)]
 pub enum CanvasMessage {
     CurvesMessage(CurvesMessage),
+    SelectShapeKind(ShapeKind),
     Clear,
     Save,
     Back,
 }
 
-impl ComponentMessage for CanvasMessage {
+impl MessageType for CanvasMessage {
     fn describe(&self) -> String {
         todo!()
     }

@@ -1,4 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    ops::{Index, IndexMut},
+    rc::Rc,
+};
 
 use iced::{
     button::State as ButtonState,
@@ -11,7 +15,7 @@ use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
-use super::Component;
+use super::{Component, ToolbarButton};
 use crate::app::{file_dialog::save as save_file, message::CurvesMessage};
 use crate::app::{message::CanvasMessage, Flags};
 use crate::app::{utils::get_size, UserSettings};
@@ -19,27 +23,22 @@ use crate::app::{utils::get_size, UserSettings};
 pub struct Canvas {
     pub pending: Pending,
     curves: Vec<Curve>,
-    clear_button: ButtonState,
-    save_button: ButtonState,
-    back_button: ButtonState,
     selected_curve: Option<usize>,
+    buttons: Buttons,
 }
 
 impl Component for Canvas {
     type Message = CanvasMessage;
 
     fn new(_flags: &mut Flags) -> (Self, Command<Self::Message>) {
-        (
-            Canvas {
-                pending: Pending::new(),
-                curves: vec![],
-                clear_button: ButtonState::new(),
-                save_button: ButtonState::new(),
-                back_button: ButtonState::new(),
-                selected_curve: None,
-            },
-            Command::none(),
-        )
+        let mut canvas = Canvas {
+            pending: Pending::new(),
+            curves: vec![],
+            selected_curve: None,
+            buttons: Buttons::default(),
+        };
+        canvas.buttons.shapes.select_shape(ShapeKind::Rectangle);
+        (canvas, Command::none())
     }
 
     fn update(
@@ -65,14 +64,21 @@ impl Component for Canvas {
                 self.curves.clear();
             }
             CanvasMessage::Save => Curves::save(&self.curves),
+            CanvasMessage::SelectShapeKind(s) => {
+                self.pending.change_shape(s);
+                self.buttons.shapes.select_shape(s);
+            }
             _ => {}
         }
         self.pending.request_redraw();
         Command::none()
     }
 
-    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<CanvasMessage> {
-        Column::new()
+    fn view(
+        &mut self,
+        _settings: Rc<RefCell<UserSettings>>,
+    ) -> (Element<CanvasMessage>, Element<CanvasMessage>) {
+        let main_content = Column::new()
             .width(Length::FillPortion(5))
             .padding(20)
             .spacing(20)
@@ -85,21 +91,49 @@ impl Component for Canvas {
             .push(
                 Row::new()
                     .push(
-                        Button::new(&mut self.back_button, Text::new("Back"))
+                        Button::new(&mut self.buttons.back, Text::new("Back"))
                             .padding(8)
                             .on_press(CanvasMessage::Back),
                     )
                     .push(
-                        Button::new(&mut self.clear_button, Text::new("Clear"))
+                        Button::new(&mut self.buttons.clear, Text::new("Clear"))
                             .padding(8)
                             .on_press(CanvasMessage::Clear),
                     )
                     .push(
-                        Button::new(&mut self.save_button, Text::new("Save"))
+                        Button::new(&mut self.buttons.save, Text::new("Save"))
                             .padding(8)
                             .on_press(CanvasMessage::Save),
                     ),
             )
+            .into();
+
+        (
+            main_content,
+            Self::toolbar(
+                self.buttons.shapes.rectangle.view(
+                    "rectangle",
+                    CanvasMessage::SelectShapeKind(ShapeKind::Rectangle),
+                ),
+                self.buttons.shapes.triangle.view(
+                    "triangle",
+                    CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
+                ),
+            ),
+        )
+    }
+}
+
+impl Canvas {
+    fn toolbar<'a>(
+        rectangle: Button<'a, CanvasMessage>,
+        triangle: Button<'a, CanvasMessage>,
+    ) -> Element<'a, CanvasMessage> {
+        Row::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(rectangle)
+            .push(triangle)
             .into()
     }
 }
@@ -245,7 +279,6 @@ impl<'a> canvas::Program<CurvesMessage> for Curves<'a> {
     }
 
     fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry> {
-        dbg!(self.selected);
         let content = self.pending.cache.draw(bounds.size(), |frame: &mut Frame| {
             if let Some(selected) = self.selected {
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
@@ -399,6 +432,50 @@ impl Curve {
                     .line_to((cx, cy))
                     .line_to((ax, ay))
             }
+        }
+    }
+}
+
+#[derive(Default)]
+struct Buttons {
+    clear: ButtonState,
+    save: ButtonState,
+    back: ButtonState,
+    shapes: Shapes,
+}
+
+#[derive(Default)]
+struct Shapes {
+    rectangle: ToolbarButton,
+    triangle: ToolbarButton,
+    selected_shape: ShapeKind,
+}
+
+impl Shapes {
+    pub fn select_shape(&mut self, s: ShapeKind) {
+        let last_selected_shape = self.selected_shape;
+        self[last_selected_shape].enable();
+        self[s].disable();
+        self.selected_shape = s;
+    }
+}
+
+impl Index<ShapeKind> for Shapes {
+    type Output = ToolbarButton;
+
+    fn index(&self, s: ShapeKind) -> &Self::Output {
+        match s {
+            ShapeKind::Rectangle => &self.rectangle,
+            ShapeKind::Triangle => &self.triangle,
+        }
+    }
+}
+
+impl IndexMut<ShapeKind> for Shapes {
+    fn index_mut(&mut self, s: ShapeKind) -> &mut Self::Output {
+        match s {
+            ShapeKind::Rectangle => &mut self.rectangle,
+            ShapeKind::Triangle => &mut self.triangle,
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::app::message::ComponentMessage;
+use crate::app::message::MessageType;
 use iced::{Column, Element, Length, Row};
 
 //让元素出于一行的1/n的位置
@@ -7,7 +7,7 @@ use iced::{Column, Element, Length, Row};
 pub fn row_with_blanks<'a, E, T: 'a>(content: E, before: usize, after: usize) -> Row<'a, T>
 where
     E: Into<Element<'a, T>>,
-    T: ComponentMessage,
+    T: MessageType,
 {
     let mut res = Row::new();
     for _ in 0..before {
@@ -29,7 +29,7 @@ where
 pub fn column_with_blanks<'a, E, T: 'a>(content: E, before: usize, after: usize) -> Column<'a, T>
 where
     E: Into<Element<'a, T>>,
-    T: ComponentMessage,
+    T: MessageType,
 {
     let mut res = Column::new();
     for _ in 0..before {
