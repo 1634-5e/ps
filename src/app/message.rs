@@ -1,8 +1,9 @@
+use std::path::PathBuf;
+
 use super::component::canvas::{Curve, ShapeKind};
-use super::component::image_box::{ImageData, Navigate};
+use super::component::image_box::Navigate;
 use super::error::Error;
 use super::file_dialog::DialogType;
-use super::page::MainPage;
 
 use iced_native::Event;
 
@@ -38,7 +39,7 @@ pub enum UserSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum ImageBoxMessage {
-    ImageLoaded(Result<(Vec<ImageData>, usize), Error>),
+    ImageLoaded(Result<(Vec<PathBuf>, usize), Error>),
     PickImage(DialogType),
     Navigate(Navigate),
     CloseThis,

@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use iced::{button, image, Button, Command, Element, Length, Row, Svg, Text};
+use iced::{button, image, Alignment, Button, Column, Command, Element, Length, Row, Svg, Text};
 
-use super::{Component, ToolbarButton};
+use super::{Component, ControllableButton};
 use crate::app::error::Error;
 use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
-use crate::common::button::{entry, navigator};
+use crate::common::button::entry;
 use crate::common::custom_element::column_with_blanks;
 
 // 展示图片以及未来的编辑区域
@@ -19,26 +19,27 @@ use crate::common::custom_element::column_with_blanks;
 #[derive(Debug)]
 pub struct ImageBox {
     buttons: Buttons,
-    images: Vec<ImageData>,
+    images: Vec<PathBuf>,
     current: usize,
     status: Status,
+    image_viewer: image::viewer::State,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Buttons {
     open_image: button::State,
     open_dir: button::State,
-    previous: button::State,
-    next: button::State,
-    close_this: ToolbarButton,
-    close_all: ToolbarButton,
-    new: ToolbarButton,
+    previous: ControllableButton,
+    next: ControllableButton,
+    close_this: ControllableButton,
+    close_all: ControllableButton,
+    new: ControllableButton,
 }
 
 #[derive(Debug, Clone)]
-pub struct ImageData {
-    content: ImageType,
-    path: PathBuf,
+enum ImageType {
+    Bitmap(image::Handle),
+    Vector(Svg),
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -47,12 +48,6 @@ enum Status {
     Loading,
     View,
     Errored(Error),
-}
-
-#[derive(Debug, Clone)]
-enum ImageType {
-    Bitmap(image::Handle, image::viewer::State),
-    Vector(Svg),
 }
 
 //TODO: 加入滚轮,用于切换图片
@@ -71,6 +66,7 @@ impl Component for ImageBox {
             images: vec![],
             current: 0,
             status: Status::Loading,
+            image_viewer: image::viewer::State::new(),
         };
         let command = match flags.user_settings.try_borrow() {
             Ok(us) => Command::perform(
@@ -92,7 +88,7 @@ impl Component for ImageBox {
         let mut basic_layout = Row::new()
             .width(Length::FillPortion(5))
             .height(Length::Fill)
-            .padding(20);
+            .padding(10);
         let main_content = match self.status {
             Status::Loading => basic_layout.push(Text::new("Loading...")).into(),
             Status::View => {
@@ -108,31 +104,58 @@ impl Component for ImageBox {
                         )
                         .into()
                 } else {
-                    basic_layout = basic_layout.push(column_with_blanks(
-                        navigator(&mut self.buttons.previous, "<")
-                            .on_press(ImageBoxMessage::Navigate(Navigate::Previous)),
-                        1,
-                        1,
-                    ));
-                    match &mut self.images[self.current].content {
-                        ImageType::Bitmap(image, state) => {
-                            basic_layout = basic_layout
+                    basic_layout = basic_layout.push(
+                        column_with_blanks(
+                            self.buttons
+                                .previous
+                                .navigator("<", ImageBoxMessage::Navigate(Navigate::Previous)),
+                            1,
+                            1,
+                        )
+                        .width(Length::FillPortion(1)),
+                    );
+
+                    let image_type = get_image_data_by_extension(&self.images[self.current]);
+                    let image_column = match image_type {
+                        Some(i) => match i {
+                            ImageType::Bitmap(image) => Column::new()
+                                .align_items(Alignment::Center)
+                                .width(Length::FillPortion(8))
                                 .push(
-                                    image::Viewer::new(state, image.clone())
+                                    image::Viewer::new(&mut self.image_viewer, image)
                                         .width(Length::Fill)
                                         .height(Length::Fill),
-                                )
-                                .into()
+                                ),
+                            ImageType::Vector(image) => {
+                                Column::new().align_items(Alignment::Center).push(image)
+                            }
+                        },
+                        None => {
+                            //这个正常情况应该不可能出现
+                            column_with_blanks(Text::new("Not a supported image file"), 1, 1)
+                                .width(Length::Fill)
+                                .align_items(Alignment::Center)
                         }
-                        ImageType::Vector(image) => basic_layout = basic_layout.push(image.clone()),
                     }
+                    //FIXME: 这里的左右间距不同，试了好几种方法都不行
+                    .push(Text::new(format!(
+                        "{} / {}",
+                        self.current + 1,
+                        self.images.len()
+                    )));
+
                     basic_layout
-                        .push(column_with_blanks(
-                            navigator(&mut self.buttons.next, ">")
-                                .on_press(ImageBoxMessage::Navigate(Navigate::Next)),
-                            1,
-                            1,
-                        ))
+                        .push(image_column)
+                        .push(
+                            column_with_blanks(
+                                self.buttons
+                                    .next
+                                    .navigator(">", ImageBoxMessage::Navigate(Navigate::Next)),
+                                1,
+                                1,
+                            )
+                            .width(Length::FillPortion(1)),
+                        )
                         .into()
                 }
             }
@@ -144,11 +167,11 @@ impl Component for ImageBox {
             Self::toolbar(
                 self.buttons
                     .close_this
-                    .view("close this", ImageBoxMessage::CloseThis),
+                    .toolbar("close this", ImageBoxMessage::CloseThis),
                 self.buttons
                     .close_all
-                    .view("close all", ImageBoxMessage::CloseAll),
-                self.buttons.new.view("new", ImageBoxMessage::New),
+                    .toolbar("close all", ImageBoxMessage::CloseAll),
+                self.buttons.new.toolbar("new", ImageBoxMessage::New),
             ),
         )
     }
@@ -164,6 +187,10 @@ impl Component for ImageBox {
                     self.current = current + self.images.len();
                     self.images.append(&mut images);
                     self.status = Status::View;
+                    if self.images.len() > 1 {
+                        self.buttons.previous.disabled = false;
+                        self.buttons.next.disabled = false;
+                    }
                 }
                 Err(e) => {
                     self.status = Status::Errored(e.into());
@@ -215,8 +242,10 @@ impl ImageBox {
         if self.current < self.images.len() {
             self.images.remove(self.current);
         }
-        if self.images.is_empty() {
+        if self.images.len() <= 1 {
             self.current = 0;
+            self.buttons.previous.disabled = true;
+            self.buttons.next.disabled = true;
         } else {
             self.current = self.current % self.images.len();
         }
@@ -244,23 +273,22 @@ impl ImageBox {
 
 //FIXME:由于iced内部Event:window，对应的FileDropped事件，每一次只有一个path，也就是说，尽管多选的时候是有序的，放进去的时候顺序却是随机的
 pub async fn open(
-    path: Vec<PathBuf>,
+    paths: Vec<PathBuf>,
     automatic_load: bool,
-) -> Result<(Vec<ImageData>, usize), Error> {
+) -> Result<(Vec<PathBuf>, usize), Error> {
     //要处理两个情况，
     //1：用户使用按钮打开文件或者文件夹，目前还只能打开单个文件/文件夹
     //2：用户使用拖拽方式打开，这时可能有多个路径需要处理
 
     let mut images = vec![];
     let mut current = 0;
-    for p in path {
-        if p.is_dir() || automatic_load {
-            let picked = p.clone();
+    for path in paths {
+        if path.is_dir() || automatic_load {
             let parent;
-            if p.is_dir() {
-                parent = p.as_path();
+            if path.is_dir() {
+                parent = path.as_path();
             } else {
-                parent = match p.parent() {
+                parent = match path.parent() {
                     Some(pt) => pt,
                     None => {
                         return Err(Error::ReadFileError);
@@ -271,45 +299,34 @@ pub async fn open(
             for entry in parent.read_dir()? {
                 match entry {
                     Ok(d) => {
-                        let path = d.path();
-                        match get_image_data_by_extension(d.path()) {
-                            Some(i) => {
-                                images.push(i);
+                        let p = d.path();
+                        match p.extension() {
+                            Some(e) if (e.eq("png") || e.eq("svg")) => {
+                                if p == path {
+                                    current = images.len();
+                                }
+                                images.push(p);
                             }
-                            None => {}
-                        }
-                        if path == picked {
-                            current = images.len() - 1;
+                            _ => {}
                         }
                     }
                     Err(_) => {}
                 }
             }
         } else {
-            if let Some(content) = get_image_data_by_extension(p) {
-                images.push(content);
-            };
+            images.push(path);
         }
     }
     Ok((images, current))
 }
 
-fn get_image_data_by_extension(path: PathBuf) -> Option<ImageData> {
+fn get_image_data_by_extension(path: &PathBuf) -> Option<ImageType> {
     let ext = path.extension()?;
     if ext.eq("png") {
-        return Some(ImageData {
-            content: ImageType::Bitmap(
-                image::Handle::from_path(path.clone()),
-                image::viewer::State::new(),
-            ),
-            path,
-        });
+        return Some(ImageType::Bitmap(image::Handle::from_path(path.clone())));
     }
     if ext.eq("svg") {
-        return Some(ImageData {
-            content: ImageType::Vector(Svg::from_path(path.clone())),
-            path,
-        });
+        return Some(ImageType::Vector(Svg::from_path(path.clone())));
     }
     None
 }

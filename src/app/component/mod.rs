@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use iced::{button, Button, Command, Element};
 
-use crate::common::button::toolbar;
+use crate::common::button::{navigator as navigator_button, toolbar};
 
 use super::{message::MessageType, Flags, UserSettings};
 
@@ -29,17 +29,29 @@ pub trait Component: Sized {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct ToolbarButton {
+pub struct ControllableButton {
     state: button::State,
     disabled: bool,
 }
 
-impl ToolbarButton {
-    pub fn view<'a, T>(&'a mut self, text: &str, message: T) -> Button<'a, T>
+impl ControllableButton {
+    pub fn toolbar<'a, T>(&'a mut self, text: &str, message: T) -> Button<'a, T>
     where
         T: MessageType + Clone,
     {
         let button = toolbar(&mut self.state, text);
+        if self.disabled {
+            button
+        } else {
+            button.on_press(message)
+        }
+    }
+
+    pub fn navigator<'a, T>(&'a mut self, text: &str, message: T) -> Button<'a, T>
+    where
+        T: MessageType + Clone,
+    {
+        let button = navigator_button(&mut self.state, text);
         if self.disabled {
             button
         } else {

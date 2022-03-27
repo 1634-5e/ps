@@ -15,7 +15,7 @@ use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
-use super::{Component, ToolbarButton};
+use super::{Component, ControllableButton};
 use crate::app::{file_dialog::save as save_file, message::CurvesMessage};
 use crate::app::{message::CanvasMessage, Flags};
 use crate::app::{utils::get_size, UserSettings};
@@ -111,11 +111,11 @@ impl Component for Canvas {
         (
             main_content,
             Self::toolbar(
-                self.buttons.shapes.rectangle.view(
+                self.buttons.shapes.rectangle.toolbar(
                     "rectangle",
                     CanvasMessage::SelectShapeKind(ShapeKind::Rectangle),
                 ),
-                self.buttons.shapes.triangle.view(
+                self.buttons.shapes.triangle.toolbar(
                     "triangle",
                     CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
                 ),
@@ -446,8 +446,8 @@ struct Buttons {
 
 #[derive(Default)]
 struct Shapes {
-    rectangle: ToolbarButton,
-    triangle: ToolbarButton,
+    rectangle: ControllableButton,
+    triangle: ControllableButton,
     selected_shape: ShapeKind,
 }
 
@@ -461,7 +461,7 @@ impl Shapes {
 }
 
 impl Index<ShapeKind> for Shapes {
-    type Output = ToolbarButton;
+    type Output = ControllableButton;
 
     fn index(&self, s: ShapeKind) -> &Self::Output {
         match s {
