@@ -7,9 +7,7 @@ use super::file_dialog::DialogType;
 
 use iced_native::Event;
 
-pub trait MessageType {
-    fn describe(&self) -> String;
-}
+pub trait MessageType {}
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -25,11 +23,7 @@ pub enum MainPageMessage {
     GoToSettings,
 }
 
-impl MessageType for MainPageMessage {
-    fn describe(&self) -> String {
-        todo!()
-    }
-}
+impl MessageType for MainPageMessage {}
 
 #[derive(Debug, Clone)]
 pub enum UserSettingsMessage {
@@ -47,11 +41,7 @@ pub enum ImageBoxMessage {
     New,
 }
 
-impl MessageType for ImageBoxMessage {
-    fn describe(&self) -> String {
-        todo!()
-    }
-}
+impl MessageType for ImageBoxMessage {}
 
 #[derive(Debug, Clone)]
 pub enum CanvasMessage {
@@ -62,11 +52,7 @@ pub enum CanvasMessage {
     Back,
 }
 
-impl MessageType for CanvasMessage {
-    fn describe(&self) -> String {
-        todo!()
-    }
-}
+impl MessageType for CanvasMessage {}
 
 #[derive(Debug, Clone)]
 pub enum CurvesMessage {
