@@ -6,8 +6,7 @@ use iced::{button, Alignment, Button, Checkbox, Column, Command, Element, Length
 use crate::app::component::image_box::ImageBox;
 use crate::app::message::{MainPageMessage, UserSettingsMessage};
 use crate::app::UserSettings;
-use crate::common::button::toolbar as toolbar_button;
-use crate::common::custom_element::row_with_blanks;
+use crate::common::custom_element::row_with_spaces;
 use crate::common::style;
 
 use super::component::canvas::Canvas;
@@ -86,8 +85,9 @@ impl Page for MainPage {
             }
         };
 
-        let settings_button = row_with_blanks(
-            toolbar_button(&mut self.goto_settings, "settings")
+        let settings_button = row_with_spaces(
+            Button::new(&mut self.goto_settings, Text::new("settings"))
+                .style(style::Button::Toolbar)
                 .on_press(MainPageMessage::GoToSettings),
             1,
             0,

@@ -8,8 +8,8 @@ use super::{Component, ControllableButton};
 use crate::app::error::Error;
 use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
-use crate::common::button::entry;
-use crate::common::custom_element::column_with_blanks;
+use crate::common::custom_element::{column_with_spaces, row_with_spaces};
+use crate::common::style;
 
 // 展示图片以及未来的编辑区域
 //因为toolbar触发的事件经常会跟imagebox里的东西相关，所以在考虑是否合并
@@ -88,26 +88,41 @@ impl Component for ImageBox {
         let mut basic_layout = Row::new()
             .width(Length::FillPortion(5))
             .height(Length::Fill)
+            .align_items(Alignment::Center)
             .padding(10);
         let main_content = match self.status {
-            Status::Loading => basic_layout.push(Text::new("Loading...")).into(),
+            Status::Loading => basic_layout
+                .push(row_with_spaces(Text::new("Loading..."), 1, 1).align_items(Alignment::Center))
+                .into(),
             Status::View => {
                 if self.images.is_empty() {
                     basic_layout
-                        .push(
-                            entry(&mut self.buttons.open_image, "Open an image")
-                                .on_press(ImageBoxMessage::PickImage(DialogType::File)),
-                        )
-                        .push(
-                            entry(&mut self.buttons.open_dir, "Directory")
-                                .on_press(ImageBoxMessage::PickImage(DialogType::Dir)),
-                        )
+                        .push(row_with_spaces(
+                            Row::new()
+                                .push(
+                                    Button::new(
+                                        &mut self.buttons.open_image,
+                                        Text::new("Open an image"),
+                                    )
+                                    .style(style::Button::Entry)
+                                    .on_press(ImageBoxMessage::PickImage(DialogType::File)),
+                                )
+                                .push(
+                                    Button::new(&mut self.buttons.open_dir, Text::new("Directory"))
+                                        .style(style::Button::Entry)
+                                        .on_press(ImageBoxMessage::PickImage(DialogType::Dir)),
+                                ),
+                            1,
+                            1,
+                        ))
                         .into()
                 } else {
-                    basic_layout = basic_layout.push(column_with_blanks(
-                        self.buttons
-                            .previous
-                            .navigator("<", ImageBoxMessage::Navigate(Navigate::Previous)),
+                    basic_layout = basic_layout.push(column_with_spaces(
+                        self.buttons.previous.view(
+                            Text::new("<"),
+                            style::Button::Navigator,
+                            ImageBoxMessage::Navigate(Navigate::Previous),
+                        ),
                         1,
                         1,
                     ));
@@ -129,7 +144,7 @@ impl Component for ImageBox {
                         },
                         None => {
                             //这个正常情况应该不可能出现
-                            column_with_blanks(Text::new("Not a supported image file"), 1, 1)
+                            column_with_spaces(Text::new("Not a supported image file"), 1, 1)
                                 .width(Length::Fill)
                                 .align_items(Alignment::Center)
                         }
@@ -142,10 +157,12 @@ impl Component for ImageBox {
 
                     basic_layout
                         .push(image_column)
-                        .push(column_with_blanks(
-                            self.buttons
-                                .next
-                                .navigator(">", ImageBoxMessage::Navigate(Navigate::Next)),
+                        .push(column_with_spaces(
+                            self.buttons.next.view(
+                                Text::new(">"),
+                                style::Button::Navigator,
+                                ImageBoxMessage::Navigate(Navigate::Next),
+                            ),
                             1,
                             1,
                         ))
@@ -155,18 +172,27 @@ impl Component for ImageBox {
             Status::Errored(e) => Row::new().push(Text::new(e.explain())).into(),
         };
 
-        (
-            main_content,
-            Self::toolbar(
-                self.buttons
-                    .close_this
-                    .toolbar("close this", ImageBoxMessage::CloseThis),
-                self.buttons
-                    .close_all
-                    .toolbar("close all", ImageBoxMessage::CloseAll),
-                self.buttons.new.toolbar("new", ImageBoxMessage::New),
-            ),
-        )
+        let toolbar = Row::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(self.buttons.close_this.view(
+                Text::new("close this"),
+                style::Button::Toolbar,
+                ImageBoxMessage::CloseThis,
+            ))
+            .push(self.buttons.close_all.view(
+                Text::new("close all"),
+                style::Button::Toolbar,
+                ImageBoxMessage::CloseAll,
+            ))
+            .push(self.buttons.new.view(
+                Text::new("New"),
+                style::Button::Toolbar,
+                ImageBoxMessage::New,
+            ))
+            .into();
+
+        (main_content, toolbar)
     }
 
     fn update(
@@ -247,20 +273,6 @@ impl ImageBox {
     pub fn close_all(&mut self) {
         self.images.clear();
         self.current = 0;
-    }
-
-    pub fn toolbar<'a>(
-        close_this: Button<'a, ImageBoxMessage>,
-        close_all: Button<'a, ImageBoxMessage>,
-        new: Button<'a, ImageBoxMessage>,
-    ) -> Element<'a, ImageBoxMessage> {
-        Row::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .push(close_this)
-            .push(close_all)
-            .push(new)
-            .into()
     }
 }
 

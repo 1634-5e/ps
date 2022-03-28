@@ -16,9 +16,12 @@ use svg::node::element::Path as SvgPath;
 use svg::Document;
 
 use super::{Component, ControllableButton};
-use crate::app::{file_dialog::save as save_file, message::CurvesMessage};
 use crate::app::{message::CanvasMessage, Flags};
 use crate::app::{utils::get_size, UserSettings};
+use crate::{
+    app::{file_dialog::save as save_file, message::CurvesMessage},
+    common::style,
+};
 
 pub struct Canvas {
     pub pending: Pending,
@@ -108,33 +111,22 @@ impl Component for Canvas {
             )
             .into();
 
-        (
-            main_content,
-            Self::toolbar(
-                self.buttons.shapes.rectangle.toolbar(
-                    "rectangle",
-                    CanvasMessage::SelectShapeKind(ShapeKind::Rectangle),
-                ),
-                self.buttons.shapes.triangle.toolbar(
-                    "triangle",
-                    CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
-                ),
-            ),
-        )
-    }
-}
-
-impl Canvas {
-    fn toolbar<'a>(
-        rectangle: Button<'a, CanvasMessage>,
-        triangle: Button<'a, CanvasMessage>,
-    ) -> Element<'a, CanvasMessage> {
-        Row::new()
+        let toolbar = Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
-            .push(rectangle)
-            .push(triangle)
-            .into()
+            .push(self.buttons.shapes.rectangle.view(
+                Text::new("rectangle"),
+                style::Button::Toolbar,
+                CanvasMessage::SelectShapeKind(ShapeKind::Rectangle),
+            ))
+            .push(self.buttons.shapes.triangle.view(
+                Text::new("triangle"),
+                style::Button::Toolbar,
+                CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
+            ))
+            .into();
+
+        (main_content, toolbar)
     }
 }
 

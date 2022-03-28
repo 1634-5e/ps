@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use iced::{button, Button, Command, Element};
 
-use crate::common::button::{navigator as navigator_button, toolbar};
+use crate::common::style;
 
 use super::{message::MessageType, Flags, UserSettings};
 
@@ -35,23 +35,13 @@ pub struct ControllableButton {
 }
 
 impl ControllableButton {
-    pub fn toolbar<'a, T>(&'a mut self, text: &str, message: T) -> Button<'a, T>
-    where
-        T: MessageType + Clone,
-    {
-        let button = toolbar(&mut self.state, text);
-        if self.disabled {
-            button
-        } else {
-            button.on_press(message)
-        }
-    }
-
-    pub fn navigator<'a, T>(&'a mut self, text: &str, message: T) -> Button<'a, T>
-    where
-        T: MessageType + Clone,
-    {
-        let button = navigator_button(&mut self.state, text);
+    pub fn view<'a, T: MessageType + Clone, E: Into<Element<'a, T>>>(
+        &'a mut self,
+        content: E,
+        style: style::Button,
+        message: T,
+    ) -> Button<'a, T> {
+        let button = Button::new(&mut self.state, content).style(style);
         if self.disabled {
             button
         } else {

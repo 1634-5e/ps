@@ -1,5 +1,6 @@
 // #![allow(unused)]
 #![feature(derive_default_enum)]
+#![feature(associated_type_bounds)]
 
 use app::{Flags, Ps, UserSettings};
 
