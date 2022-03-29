@@ -41,7 +41,7 @@ pub struct Flags {
 //TODO: 这里应该使用Rc<RefCell>
 #[derive(Debug, Clone, Default)]
 pub struct UserSettings {
-    pub automatic_load: bool, //这一项继续细分可以包括：按钮打开自动、拖拽到图标自动、拖拽到应用自动、以及全关
+    pub(crate) automatic_load: bool, //这一项继续细分可以包括：按钮打开自动、拖拽到图标自动、拖拽到应用自动、以及全关
 }
 
 //FIXME: update 目前一共要经历三层，Ps（程序主体）-> Page（程序页面）-> Component（页面的组成部分），

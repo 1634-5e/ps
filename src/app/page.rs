@@ -30,8 +30,8 @@ pub trait Page: Sized {
 
 //程序的每一个页面，预计只包含主页和设置页面，写成这样方便加入新的页面
 pub struct MainPage {
-    pub image_box: ImageBox,
-    pub canvas: Canvas,
+    image_box: ImageBox,
+    canvas: Canvas,
     current: MainContent,
     goto_settings: button::State,
 }
