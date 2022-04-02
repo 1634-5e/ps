@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use iced::{button, Alignment, Button, Checkbox, Column, Command, Element, Length, Row, Text};
+use iced::{
+    button, Alignment, Button, Checkbox, Column, Command, Container, Element, Length, Row, Text,
+};
 
 use crate::app::component::image_box::ImageBox;
 use crate::app::message::{MainPageMessage, UserSettingsMessage};
@@ -68,21 +70,15 @@ impl Page for MainPage {
     //自带的样式有点少，如果要让某个元素被放在末位，则让同等的元素随便有个Length::Fill或者Length::FillPortion（然后要放末位的那个不管），就会自动被挤过去。。（放中间同理，前后两个空白等值的FillPortion
     fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<MainPageMessage> {
         //TODO:逐步加入按钮，先从关闭当前图片开始
-        let (current, toolbar) = match self.current {
-            MainContent::View => {
-                let (c, t) = self.image_box.view(settings.clone());
-                (
-                    c.map(MainPageMessage::ImageBoxMessage),
-                    t.map(MainPageMessage::ImageBoxMessage),
-                )
-            }
-            MainContent::Edit => {
-                let (c, t) = self.canvas.view(settings.clone());
-                (
-                    c.map(MainPageMessage::CanvasMessage),
-                    t.map(MainPageMessage::CanvasMessage),
-                )
-            }
+        let main_content = match self.current {
+            MainContent::View => self
+                .image_box
+                .view(settings.clone())
+                .map(MainPageMessage::ImageBoxMessage),
+            MainContent::Edit => self
+                .canvas
+                .view(settings.clone())
+                .map(MainPageMessage::CanvasMessage),
         };
 
         let settings_button = row_with_spaces(
@@ -92,26 +88,16 @@ impl Page for MainPage {
             1,
             0,
         )
-        .width(Length::FillPortion(1));
+        .width(Length::Shrink);
 
-        let info = Text::new("a picker here");
+        let info = Column::new().width(Length::FillPortion(3));
 
         Column::new()
             .width(Length::Fill)
             .height(Length::Fill)
             .align_items(Alignment::Center)
-            .push(
-                Row::new()
-                    .height(Length::FillPortion(1))
-                    .push(toolbar)
-                    .push(settings_button),
-            )
-            .push(
-                Row::new()
-                    .height(Length::FillPortion(9))
-                    .push(current)
-                    .push(Column::new().width(Length::FillPortion(2)).push(info)),
-            )
+            .push(settings_button)
+            .push(Row::new().push(main_content).push(info))
             .into()
     }
 
@@ -168,16 +154,27 @@ impl Page for UserSettingsPage {
     fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<UserSettingsMessage> {
         match settings.try_borrow() {
             Ok(settings) => Column::new()
+                .width(Length::Fill)
                 .push(
                     Button::new(&mut self.back, Text::new("Back"))
                         .style(style::Button::Entry)
                         .on_press(UserSettingsMessage::GoToMainPage),
                 )
-                .push(Checkbox::new(
-                    settings.automatic_load,
-                    "Automatically load images under the same dir",
-                    UserSettingsMessage::AutomaticLoad,
-                ))
+                .push(
+                    Container::new(
+                        Column::new()
+                            .align_items(Alignment::Start)
+                            .padding(10)
+                            .push(Checkbox::new(
+                                settings.automatic_load,
+                                "Automatically load images under the same dir",
+                                UserSettingsMessage::AutomaticLoad,
+                            ))
+                            .push(Text::new("test for alignment ...")),
+                    )
+                    .width(Length::Fill)
+                    .center_x(),
+                )
                 .into(),
             Err(e) => Column::new()
                 .push(Text::new(Error::from(e).explain()))

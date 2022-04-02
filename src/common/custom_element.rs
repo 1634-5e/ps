@@ -1,3 +1,5 @@
+//Deprecated
+
 use crate::app::message::MessageType;
 use iced::{Column, Element, Length, Row, Space};
 
@@ -9,21 +11,21 @@ where
     E: Into<Element<'a, T>>,
     T: MessageType,
 {
-    let mut res = Row::new();
-    for _ in 0..before {
-        res = res.push(Space::with_width(Length::FillPortion(1)));
-    }
-    res = res.push(content);
-    for _ in 0..after {
-        res = res.push(Space::with_width(Length::FillPortion(1)));
-    }
-    res
+    // let mut res = Row::new();
+    // for _ in 0..before {
+    //     res = res.push(Space::with_width(Length::FillPortion(1)));
+    // }
+    // res = res.push(content);
+    // for _ in 0..after {
+    //     res = res.push(Space::with_width(Length::FillPortion(1)));
+    // }
+    // res
 
     //这样写虽然看起来简洁了，但是没用，不太明白
-    // Row::new()
-    //     .push(Space::with_width(Length::FillPortion(before)))
-    //     .push(content)
-    //     .push(Space::with_width(Length::FillPortion(after)))
+    Row::new()
+        .push(Space::with_width(Length::FillPortion(before)))
+        .push(content)
+        .push(Space::with_width(Length::FillPortion(after)))
 }
 
 pub fn column_with_spaces<'a, E, T: 'a>(content: E, before: u16, after: u16) -> Column<'a, T>
@@ -31,18 +33,18 @@ where
     E: Into<Element<'a, T>>,
     T: MessageType,
 {
-    let mut res = Column::new();
-    for _ in 0..before {
-        res = res.push(Space::with_height(Length::FillPortion(1)));
-    }
-    res = res.push(content);
-    for _ in 0..after {
-        res = res.push(Space::with_height(Length::FillPortion(1)));
-    }
-    res
+    // let mut res = Column::new();
+    // for _ in 0..before {
+    //     res = res.push(Space::with_height(Length::FillPortion(1)));
+    // }
+    // res = res.push(content);
+    // for _ in 0..after {
+    //     res = res.push(Space::with_height(Length::FillPortion(1)));
+    // }
+    // res
 
-    // Column::new()
-    //     .push(Space::with_height(Length::FillPortion(before)))
-    //     .push(content)
-    //     .push(Space::with_height(Length::FillPortion(after)))
+    Column::new()
+        .push(Space::with_height(Length::FillPortion(before)))
+        .push(content)
+        .push(Space::with_height(Length::FillPortion(after)))
 }

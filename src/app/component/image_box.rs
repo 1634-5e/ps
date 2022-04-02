@@ -2,13 +2,15 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use iced::{button, image, Alignment, Button, Column, Command, Element, Length, Row, Svg, Text};
+use iced::{
+    button, Alignment, Button, Column, Command, Container, Element, Image, Length, Row, Svg, Text,
+};
+use iced_native::Widget;
 
 use super::{Component, ControllableButton};
 use crate::app::error::Error;
 use crate::app::file_dialog::{pick as pick_in_dialog, DialogType};
 use crate::app::{message::ImageBoxMessage, Flags, UserSettings};
-use crate::common::custom_element::{column_with_spaces, row_with_spaces};
 use crate::common::style;
 
 // 展示图片以及未来的编辑区域
@@ -22,24 +24,19 @@ pub struct ImageBox {
     images: Vec<PathBuf>,
     current: usize,
     status: Status,
-    image_viewer: image::viewer::State,
+    // image_viewer: image::viewer::State,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Buttons {
     open_image: button::State,
     open_dir: button::State,
+    close_notfound: button::State,
     previous: ControllableButton,
     next: ControllableButton,
     close_this: ControllableButton,
     close_all: ControllableButton,
     new: ControllableButton,
-}
-
-#[derive(Debug, Clone)]
-enum ImageType {
-    Bitmap(image::Handle),
-    Vector(Svg),
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -66,7 +63,7 @@ impl Component for ImageBox {
             images: vec![],
             current: 0,
             status: Status::Loading,
-            image_viewer: image::viewer::State::new(),
+            // image_viewer: image::viewer::State::new(),
         };
         let command = match flags.user_settings.try_borrow() {
             Ok(us) => Command::perform(
@@ -81,100 +78,85 @@ impl Component for ImageBox {
         (image_box, command)
     }
 
-    fn view(
-        &mut self,
-        _settings: Rc<RefCell<UserSettings>>,
-    ) -> (Element<ImageBoxMessage>, Element<ImageBoxMessage>) {
-        let mut basic_layout = Row::new()
-            .width(Length::FillPortion(5))
-            .height(Length::Fill)
-            .align_items(Alignment::Center)
-            .padding(10);
-        let main_content = match self.status {
-            Status::Loading => basic_layout
-                .push(row_with_spaces(Text::new("Loading..."), 1, 1).align_items(Alignment::Center))
-                .into(),
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<ImageBoxMessage> {
+        let main_content = Container::new(match self.status {
+            Status::Loading => Row::new().push(Text::new("Loading...")),
             Status::View => {
                 if self.images.is_empty() {
-                    basic_layout
-                        .push(row_with_spaces(
-                            Row::new()
-                                .push(
-                                    Button::new(
-                                        &mut self.buttons.open_image,
-                                        Text::new("Open an image"),
-                                    )
-                                    .style(style::Button::Entry)
-                                    .on_press(ImageBoxMessage::PickImage(DialogType::File)),
-                                )
-                                .push(
-                                    Button::new(&mut self.buttons.open_dir, Text::new("Directory"))
-                                        .style(style::Button::Entry)
-                                        .on_press(ImageBoxMessage::PickImage(DialogType::Dir)),
-                                ),
-                            1,
-                            1,
-                        ))
-                        .into()
+                    Row::new()
+                        .push(
+                            Button::new(&mut self.buttons.open_image, Text::new("Open an image"))
+                                .style(style::Button::Entry)
+                                .on_press(ImageBoxMessage::PickImage(DialogType::File)),
+                        )
+                        .push(
+                            Button::new(&mut self.buttons.open_dir, Text::new("Directory"))
+                                .style(style::Button::Entry)
+                                .on_press(ImageBoxMessage::PickImage(DialogType::Dir)),
+                        )
                 } else {
-                    basic_layout = basic_layout.push(column_with_spaces(
-                        self.buttons.previous.view(
-                            Text::new("<"),
-                            style::Button::Navigator,
-                            ImageBoxMessage::Navigate(Navigate::Previous),
-                        ),
-                        1,
-                        1,
+                    let mut row = Row::new().align_items(Alignment::Center);
+
+                    row = row.push(self.buttons.previous.view(
+                        Text::new("<"),
+                        style::Button::Navigator,
+                        ImageBoxMessage::Navigate(Navigate::Previous),
                     ));
 
-                    let image_type = get_image_data_by_extension(&self.images[self.current]);
-                    let image_column = match image_type {
-                        Some(i) => match i {
-                            ImageType::Bitmap(image) => Column::new()
-                                .align_items(Alignment::Center)
-                                .width(Length::FillPortion(8))
-                                .push(
-                                    image::Viewer::new(&mut self.image_viewer, image)
-                                        .width(Length::Fill)
-                                        .height(Length::Fill),
-                                ),
-                            ImageType::Vector(image) => {
-                                Column::new().align_items(Alignment::Center).push(image)
+                    // row = row.push(
+                    //     Container::new(self.buttons.previous.view(
+                    //         Text::new("<"),
+                    //         style::Button::Navigator,
+                    //         ImageBoxMessage::Navigate(Navigate::Previous),
+                    //     ))
+                    //     .height(Length::Fill)
+                    //     .center_y(),
+                    // );
+
+                    let current_image = self.images[self.current].as_path();
+                    let image_column = if current_image.exists() {
+                        match current_image.extension() {
+                            Some(e) if e.eq("png") || e.eq("jpg") => {
+                                Column::new().push(Image::new(current_image))
                             }
-                        },
-                        None => {
-                            //这个正常情况应该不可能出现
-                            column_with_spaces(Text::new("Not a supported image file"), 1, 1)
-                                .width(Length::Fill)
-                                .align_items(Alignment::Center)
+                            Some(e) if e.eq("svg") => {
+                                Column::new().push(Svg::from_path(current_image))
+                            }
+
+                            _ => Column::new().push(Text::new("Internal Error.")),
                         }
+                    } else {
+                        Column::new()
+                            .push(Text::new("Not Found. Maybe Deleted."))
+                            .push(
+                                Button::new(&mut self.buttons.close_notfound, Text::new("Close"))
+                                    .style(style::Button::Entry)
+                                    .on_press(ImageBoxMessage::CloseThis),
+                            )
                     }
+                    .width(Length::Fill)
+                    .align_items(Alignment::Center)
                     .push(Text::new(format!(
                         "{} / {}",
                         self.current + 1,
                         self.images.len()
                     )));
 
-                    basic_layout
-                        .push(image_column)
-                        .push(column_with_spaces(
-                            self.buttons.next.view(
-                                Text::new(">"),
-                                style::Button::Navigator,
-                                ImageBoxMessage::Navigate(Navigate::Next),
-                            ),
-                            1,
-                            1,
-                        ))
-                        .into()
+                    row.push(image_column).push(self.buttons.next.view(
+                        Text::new(">"),
+                        style::Button::Navigator,
+                        ImageBoxMessage::Navigate(Navigate::Next),
+                    ))
                 }
             }
-            Status::Errored(e) => Row::new().push(Text::new(e.explain())).into(),
-        };
+            Status::Errored(e) => Row::new().push(Text::new(e.explain())),
+        })
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x()
+        .center_y();
 
         let toolbar = Row::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
             .push(self.buttons.close_this.view(
                 Text::new("close this"),
                 style::Button::Toolbar,
@@ -189,10 +171,14 @@ impl Component for ImageBox {
                 Text::new("New"),
                 style::Button::Toolbar,
                 ImageBoxMessage::New,
-            ))
-            .into();
+            ));
 
-        (main_content, toolbar)
+        Column::new()
+            .width(Length::FillPortion(7))
+            .height(Length::Fill)
+            .push(toolbar)
+            .push(main_content)
+            .into()
     }
 
     fn update(
@@ -306,7 +292,7 @@ pub async fn open(
                     Ok(d) => {
                         let p = d.path();
                         match p.extension() {
-                            Some(e) if (e.eq("png") || e.eq("svg")) => {
+                            Some(e) if e.eq("png") || e.eq("svg") || e.eq("jpg") => {
                                 if p == path {
                                     current = images.len();
                                 }
@@ -323,15 +309,4 @@ pub async fn open(
         }
     }
     Ok((images, current))
-}
-
-fn get_image_data_by_extension(path: &PathBuf) -> Option<ImageType> {
-    let ext = path.extension()?;
-    if ext.eq("png") {
-        return Some(ImageType::Bitmap(image::Handle::from_path(path.clone())));
-    }
-    if ext.eq("svg") {
-        return Some(ImageType::Vector(Svg::from_path(path.clone())));
-    }
-    None
 }

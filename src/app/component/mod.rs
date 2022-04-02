@@ -17,10 +17,7 @@ pub trait Component: Sized {
     fn new(flags: &mut Flags) -> (Self, Command<Self::Message>);
 
     //返回(main_content, toolbar)
-    fn view(
-        &mut self,
-        settings: Rc<RefCell<UserSettings>>,
-    ) -> (Element<Self::Message>, Element<Self::Message>);
+    fn view(&mut self, settings: Rc<RefCell<UserSettings>>) -> Element<Self::Message>;
     fn update(
         &mut self,
         message: Self::Message,

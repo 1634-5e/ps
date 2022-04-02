@@ -77,12 +77,8 @@ impl Component for Canvas {
         Command::none()
     }
 
-    fn view(
-        &mut self,
-        _settings: Rc<RefCell<UserSettings>>,
-    ) -> (Element<CanvasMessage>, Element<CanvasMessage>) {
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<CanvasMessage> {
         let main_content = Column::new()
-            .width(Length::FillPortion(5))
             .padding(20)
             .spacing(20)
             .align_items(Alignment::Center)
@@ -108,12 +104,9 @@ impl Component for Canvas {
                             .padding(8)
                             .on_press(CanvasMessage::Save),
                     ),
-            )
-            .into();
+            );
 
         let toolbar = Row::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
             .push(self.buttons.shapes.rectangle.view(
                 Text::new("rectangle"),
                 style::Button::Toolbar,
@@ -123,10 +116,14 @@ impl Component for Canvas {
                 Text::new("triangle"),
                 style::Button::Toolbar,
                 CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
-            ))
-            .into();
+            ));
 
-        (main_content, toolbar)
+        Column::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(toolbar)
+            .push(main_content)
+            .into()
     }
 }
 
