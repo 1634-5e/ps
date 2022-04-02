@@ -10,8 +10,6 @@ use iced::{
 };
 use svg::node::element::path::Data;
 
-use super::utils::get_size;
-
 pub trait Shape {
     fn draw(&self, frame: &mut Frame, selected: bool);
     fn save(&self, data: Data) -> Data;

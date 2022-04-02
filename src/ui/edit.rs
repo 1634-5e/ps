@@ -5,7 +5,7 @@ use std::{
 };
 
 use iced::{
-    button::State as ButtonState,
+    button::{self, State as ButtonState},
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
     mouse, Alignment, Button, Color, Column, Command, Element, Length, Point, Rectangle, Row, Text,
@@ -15,42 +15,46 @@ use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
-use super::{Component, ControllableButton};
-use crate::app::{message::CanvasMessage, Flags};
-use crate::app::{utils::get_size, UserSettings};
-use crate::{
-    app::{file_dialog::save as save_file, message::CurvesMessage},
-    common::style,
-};
+use crate::{Flags, UserSettings};
 
-pub struct Canvas {
+use super::{style, utils::get_size};
+use crate::io::dialogs::save as save_file;
+
+#[derive(Debug, Clone)]
+pub enum EditMessage {
+    CurvesMessage(CurvesMessage),
+    SelectShapeKind(ShapeKind),
+    Clear,
+    Save,
+    Back,
+}
+
+#[derive(Debug)]
+pub struct Edit {
     pub pending: Pending,
     curves: Vec<Curve>,
     selected_curve: Option<usize>,
     buttons: Buttons,
 }
 
-impl Component for Canvas {
-    type Message = CanvasMessage;
-
-    fn new(_flags: &mut Flags) -> (Self, Command<Self::Message>) {
-        let mut canvas = Canvas {
+impl Edit {
+    fn new(_flags: &mut Flags) -> (Self, Command<EditMessage>) {
+        let mut canvas = Edit {
             pending: Pending::new(),
             curves: vec![],
             selected_curve: None,
             buttons: Buttons::default(),
         };
-        canvas.buttons.shapes.select_shape(ShapeKind::Rectangle);
         (canvas, Command::none())
     }
 
     fn update(
         &mut self,
-        message: CanvasMessage,
+        message: EditMessage,
         _settings: Rc<RefCell<UserSettings>>,
-    ) -> Command<CanvasMessage> {
+    ) -> Command<EditMessage> {
         match message {
-            CanvasMessage::CurvesMessage(cm) => match cm {
+            EditMessage::CurvesMessage(cm) => match cm {
                 CurvesMessage::AddCurve(curve) => {
                     self.curves.push(curve);
                 }
@@ -62,14 +66,13 @@ impl Component for Canvas {
                     }
                 }
             },
-            CanvasMessage::Clear => {
+            EditMessage::Clear => {
                 self.pending.curve.points.clear();
                 self.curves.clear();
             }
-            CanvasMessage::Save => Curves::save(&self.curves),
-            CanvasMessage::SelectShapeKind(s) => {
+            EditMessage::Save => Curves::save(&self.curves),
+            EditMessage::SelectShapeKind(s) => {
                 self.pending.change_shape(s);
-                self.buttons.shapes.select_shape(s);
             }
             _ => {}
         }
@@ -77,7 +80,7 @@ impl Component for Canvas {
         Command::none()
     }
 
-    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<CanvasMessage> {
+    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<EditMessage> {
         let main_content = Column::new()
             .padding(20)
             .spacing(20)
@@ -85,38 +88,38 @@ impl Component for Canvas {
             .push(
                 self.pending
                     .view(&self.curves, &self.selected_curve)
-                    .map(CanvasMessage::CurvesMessage),
+                    .map(EditMessage::CurvesMessage),
             )
             .push(
                 Row::new()
                     .push(
                         Button::new(&mut self.buttons.back, Text::new("Back"))
                             .padding(8)
-                            .on_press(CanvasMessage::Back),
+                            .on_press(EditMessage::Back),
                     )
                     .push(
                         Button::new(&mut self.buttons.clear, Text::new("Clear"))
                             .padding(8)
-                            .on_press(CanvasMessage::Clear),
+                            .on_press(EditMessage::Clear),
                     )
                     .push(
                         Button::new(&mut self.buttons.save, Text::new("Save"))
                             .padding(8)
-                            .on_press(CanvasMessage::Save),
+                            .on_press(EditMessage::Save),
                     ),
             );
 
         let toolbar = Row::new()
-            .push(self.buttons.shapes.rectangle.view(
-                Text::new("rectangle"),
-                style::Button::Toolbar,
-                CanvasMessage::SelectShapeKind(ShapeKind::Rectangle),
-            ))
-            .push(self.buttons.shapes.triangle.view(
-                Text::new("triangle"),
-                style::Button::Toolbar,
-                CanvasMessage::SelectShapeKind(ShapeKind::Triangle),
-            ));
+            .push(
+                Button::new(&mut self.buttons.shapes.rectangle, Text::new("rectangle"))
+                    .style(style::Button::Toolbar)
+                    .on_press(EditMessage::SelectShapeKind(ShapeKind::Rectangle)),
+            )
+            .push(
+                Button::new(&mut self.buttons.shapes.triangle, Text::new("triangle"))
+                    .style(style::Button::Toolbar)
+                    .on_press(EditMessage::SelectShapeKind(ShapeKind::Triangle)),
+            );
 
         Column::new()
             .width(Length::Fill)
@@ -127,6 +130,7 @@ impl Component for Canvas {
     }
 }
 
+#[derive(Debug)]
 pub struct Pending {
     curve: Curve,
     cache: canvas::Cache,
@@ -213,6 +217,12 @@ impl Pending {
     pub fn change_shape(&mut self, s: ShapeKind) {
         self.curve.kind = s;
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum CurvesMessage {
+    AddCurve(Curve),
+    SelectCurve(Option<usize>),
 }
 
 struct Curves<'a> {
@@ -425,7 +435,7 @@ impl Curve {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Buttons {
     clear: ButtonState,
     save: ButtonState,
@@ -433,38 +443,30 @@ struct Buttons {
     shapes: Shapes,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Shapes {
-    rectangle: ControllableButton,
-    triangle: ControllableButton,
+    rectangle: button::State,
+    triangle: button::State,
     selected_shape: ShapeKind,
 }
 
-impl Shapes {
-    pub fn select_shape(&mut self, s: ShapeKind) {
-        let last_selected_shape = self.selected_shape;
-        self[last_selected_shape].enable();
-        self[s].disable();
-        self.selected_shape = s;
-    }
-}
+//currently useless
+// impl Index<ShapeKind> for Shapes {
+//     type Output = button::State;
 
-impl Index<ShapeKind> for Shapes {
-    type Output = ControllableButton;
+//     fn index(&self, s: ShapeKind) -> &Self::Output {
+//         match s {
+//             ShapeKind::Rectangle => &self.rectangle,
+//             ShapeKind::Triangle => &self.triangle,
+//         }
+//     }
+// }
 
-    fn index(&self, s: ShapeKind) -> &Self::Output {
-        match s {
-            ShapeKind::Rectangle => &self.rectangle,
-            ShapeKind::Triangle => &self.triangle,
-        }
-    }
-}
-
-impl IndexMut<ShapeKind> for Shapes {
-    fn index_mut(&mut self, s: ShapeKind) -> &mut Self::Output {
-        match s {
-            ShapeKind::Rectangle => &mut self.rectangle,
-            ShapeKind::Triangle => &mut self.triangle,
-        }
-    }
-}
+// impl IndexMut<ShapeKind> for Shapes {
+//     fn index_mut(&mut self, s: ShapeKind) -> &mut Self::Output {
+//         match s {
+//             ShapeKind::Rectangle => &mut self.rectangle,
+//             ShapeKind::Triangle => &mut self.triangle,
+//         }
+//     }
+// }
