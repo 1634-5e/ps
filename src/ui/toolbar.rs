@@ -17,6 +17,8 @@ pub enum ToolbarMessage {
     SelectShape(Shape),
 }
 
+
+//TODO:按钮要能改样式，但是不想每个都多一个bool
 #[derive(Debug, Default, Clone)]
 pub struct Toolbar {
     //view

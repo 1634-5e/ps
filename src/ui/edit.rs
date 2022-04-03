@@ -10,7 +10,7 @@ use svg::Document;
 
 // use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 
-use super::{style, utils::get_size};
+use super::utils::get_size;
 use crate::io::dialogs::save as save_file;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -20,42 +20,91 @@ pub enum Shape {
     Triangle,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Curve {
     points: Vec<Point>,
-    kind: Shape,
+    shape: Shape,
     color: Color,
     width: f32,
+}
+
+impl Default for Curve {
+    fn default() -> Self {
+        Curve {
+            points: vec![],
+            shape: Shape::Rectangle,
+            color: Color::BLACK,
+            width: 2.0,
+        }
+    }
 }
 
 impl Curve {
     pub fn new(kind: Shape, color: Color, width: f32) -> Self {
         Curve {
             points: vec![],
-            kind,
+            shape: kind,
             color,
             width,
         }
     }
 
     pub fn labor(&self) -> u16 {
-        match self.kind {
+        match self.shape {
             Shape::Rectangle => 2,
             Shape::Triangle => 3,
         }
     }
 
+    pub fn preview(&self, bounds: Rectangle, cursor: Cursor) -> Geometry {
+        let mut frame = Frame::new(bounds.size());
+
+        if let Some(cursor_position) = cursor.position_in(&bounds) {
+            let path = Path::new(|p| match self.shape {
+                Shape::Rectangle => {
+                    if self.points.len() == 1 {
+                        let top_left = self.points[0];
+                        let right_bottom = cursor_position;
+                        p.rectangle(top_left, get_size(top_left, right_bottom));
+                    }
+                }
+                Shape::Triangle => {
+                    let len = self.points.len();
+                    if len == 1 {
+                        p.move_to(self.points[0]);
+                        p.line_to(cursor_position);
+                    } else if len == 2 {
+                        p.move_to(self.points[0]);
+                        p.line_to(self.points[1]);
+                        p.line_to(cursor_position);
+                        p.line_to(self.points[0]);
+                    }
+                }
+            });
+            frame.stroke(
+                &path,
+                Stroke {
+                    width: self.width,
+                    color: self.color,
+                    ..Stroke::default()
+                },
+            )
+        }
+
+        frame.into_geometry()
+    }
+
     #[inline(always)]
-    pub fn draw(curve: &Curve, frame: &mut Frame, selected: bool) {
-        assert!(curve.points.len() == curve.labor().into());
-        let path = Path::new(|builder| match curve.kind {
+    pub fn draw(&self, frame: &mut Frame, selected: bool) {
+        assert!(self.points.len() == self.labor().into());
+        let path = Path::new(|builder| match self.shape {
             Shape::Rectangle => {
-                if let [top_left, right_bottom] = curve.points[..] {
+                if let [top_left, right_bottom] = self.points[..] {
                     builder.rectangle(top_left, get_size(top_left, right_bottom));
                 }
             }
             Shape::Triangle => {
-                if let [a, b, c] = curve.points[..] {
+                if let [a, b, c] = self.points[..] {
                     builder.move_to(a);
                     builder.line_to(b);
                     builder.line_to(c);
@@ -66,15 +115,15 @@ impl Curve {
         frame.stroke(
             &path,
             Stroke {
-                width: curve.width,
-                color: curve.color,
+                width: self.width,
+                color: self.color,
                 ..Stroke::default()
             },
         );
 
         if selected {
             let selection_highlight = Path::new(|b| {
-                for point in curve.points.iter() {
+                for point in self.points.iter() {
                     b.circle(*point, 8.0);
                 }
             });
@@ -92,7 +141,7 @@ impl Curve {
 
     #[inline(always)]
     pub fn save(&self, data: Data) -> Data {
-        match self.kind {
+        match self.shape {
             Shape::Rectangle => {
                 assert!(self.points.len() == 2);
                 let Point { x: x1, y: y1 } = self.points[0];
@@ -131,86 +180,66 @@ impl Curve {
 //     }
 // }
 
-#[derive(Debug)]
-pub struct Pending {
-    curve: Curve,
+#[derive(Debug, Clone)]
+pub enum EditMessage {
+    AddCurve(Curve),
+    SelectCurve(Option<usize>),
+}
+
+#[derive(Debug, Default)]
+pub struct Edit {
+    pub pending: Curve,
+    curves: Vec<Curve>,
     cache: canvas::Cache,
+    selected_curve: Option<usize>,
 }
 
-impl Default for Pending {
-    fn default() -> Self {
-        Pending {
-            curve: Curve::new(Shape::Rectangle, Color::BLACK, 2.0),
-            cache: canvas::Cache::new(),
+impl Edit {
+    pub fn update(&mut self, message: EditMessage) {
+        match message {
+            EditMessage::AddCurve(c) => self.curves.push(c),
+            EditMessage::SelectCurve(c) => self.selected_curve = c,
         }
-    }
-}
-
-impl Pending {
-    pub fn update(&mut self, new: Point) -> Option<Curve> {
-        let labor: usize = self.curve.labor().into();
-        self.curve.points.push(new);
-        if self.curve.points.len() == labor {
-            Some(Curve {
-                points: self.curve.points.drain(..).collect(),
-                ..self.curve
-            })
-        } else {
-            None
-        }
+        self.request_redraw();
     }
 
-    pub fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Geometry {
-        let mut frame = Frame::new(bounds.size());
+    pub fn view(&mut self) -> Element<EditMessage> {
+        let main_content = Column::new()
+            .padding(20)
+            .spacing(20)
+            .align_items(Alignment::Center)
+            .push(
+                IcedCanvas::new(self)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            );
 
-        if let Some(cursor_position) = cursor.position_in(&bounds) {
-            let path = Path::new(|p| match self.curve.kind {
-                Shape::Rectangle => {
-                    if self.curve.points.len() == 1 {
-                        let top_left = self.curve.points[0];
-                        let right_bottom = cursor_position;
-                        p.rectangle(top_left, get_size(top_left, right_bottom));
-                    }
-                }
-                Shape::Triangle => {
-                    let len = self.curve.points.len();
-                    if len == 1 {
-                        p.move_to(self.curve.points[0]);
-                        p.line_to(cursor_position);
-                    } else if len == 2 {
-                        p.move_to(self.curve.points[0]);
-                        p.line_to(self.curve.points[1]);
-                        p.line_to(cursor_position);
-                        p.line_to(self.curve.points[0]);
-                    }
-                }
-            });
-            frame.stroke(
-                &path,
-                Stroke {
-                    width: self.curve.width,
-                    color: self.curve.color,
-                    ..Stroke::default()
-                },
-            )
-        }
-
-        frame.into_geometry()
+        Column::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(main_content)
+            .into()
     }
 
-    pub fn view<'a>(
-        &'a mut self,
-        curves: &'a [Curve],
-        selected: &'a Option<usize>,
-    ) -> Element<'a, EditMessage> {
-        IcedCanvas::new(Curves {
-            pending: self,
-            curves,
-            selected,
-        })
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    pub fn reset(&mut self) {
+        self.pending.points.clear();
+        self.curves.clear();
+    }
+
+    pub fn save(&self) {
+        if let Some(pathbuf) = save_file() {
+            let data = self.curves.iter().fold(Data::new(), |acc, x| x.save(acc));
+
+            let path = SvgPath::new()
+                .set("fill", "none")
+                .set("stroke", "black")
+                .set("stroke-width", 3)
+                .set("d", data.close());
+
+            let document = Document::new().add(path);
+
+            svg::save(pathbuf, &document).unwrap();
+        }
     }
 
     pub fn request_redraw(&mut self) {
@@ -218,17 +247,16 @@ impl Pending {
     }
 
     pub fn change_shape(&mut self, s: Shape) {
-        self.curve.kind = s;
+        if let Some(index) = self.selected_curve {
+            self.curves[index].shape = s;
+        } else {
+            self.pending.shape = s;
+        }
     }
 }
 
-pub struct Curves<'a> {
-    pending: &'a mut Pending,
-    curves: &'a [Curve],
-    selected: &'a Option<usize>,
-}
-
-impl<'a> canvas::Program<EditMessage> for Curves<'a> {
+//FIXME:当Edit中新增了很多这里不需要的数据的时候，就应该换回原来的结构
+impl canvas::Program<EditMessage> for Edit {
     fn update(
         &mut self,
         event: Event,
@@ -246,7 +274,7 @@ impl<'a> canvas::Program<EditMessage> for Curves<'a> {
                 match mouse_event {
                     mouse::Event::ButtonPressed(mouse::Button::Left) => {
                         //如果pending是空的，则判定是否落在已有curve的points上
-                        if self.pending.curve.points.is_empty() {
+                        if self.pending.points.is_empty() {
                             for (index, curve) in self.curves.iter().enumerate() {
                                 for point in curve.points.iter() {
                                     if cursor_position.distance(*point) < 5.0 {
@@ -258,8 +286,17 @@ impl<'a> canvas::Program<EditMessage> for Curves<'a> {
                                 }
                             }
                         }
-                        if let Some(curve) = self.pending.update(cursor_position) {
-                            return (event::Status::Captured, Some(EditMessage::AddCurve(curve)));
+
+                        let labor: usize = self.pending.labor().into();
+                        self.pending.points.push(cursor_position);
+                        if self.pending.points.len() == labor {
+                            return (
+                                event::Status::Captured,
+                                Some(EditMessage::AddCurve(Curve {
+                                    points: self.pending.points.drain(..).collect(),
+                                    ..self.pending
+                                })),
+                            );
                         }
                     }
                     _ => {}
@@ -272,13 +309,13 @@ impl<'a> canvas::Program<EditMessage> for Curves<'a> {
     }
 
     fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry> {
-        let content = self.pending.cache.draw(bounds.size(), |frame: &mut Frame| {
-            if let Some(selected) = self.selected {
+        let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
+            if let Some(selected) = self.selected_curve {
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
-                    if index == *selected {
-                        Curve::draw(curve, frame, true);
+                    if index == selected {
+                        curve.draw(frame, true);
                     } else {
-                        Curve::draw(curve, frame, false);
+                        curve.draw(frame, false);
                     }
                 });
             } else {
@@ -293,7 +330,7 @@ impl<'a> canvas::Program<EditMessage> for Curves<'a> {
             );
         });
 
-        let pending_curve = self.pending.draw(bounds, cursor);
+        let pending_curve = self.pending.preview(bounds, cursor);
 
         vec![content, pending_curve]
     }
@@ -304,69 +341,5 @@ impl<'a> canvas::Program<EditMessage> for Curves<'a> {
         } else {
             mouse::Interaction::default()
         }
-    }
-}
-
-impl<'a> Curves<'a> {
-    pub fn save(curves: &'a [Curve]) {
-        if let Some(pathbuf) = save_file() {
-            let data = curves.iter().fold(Data::new(), |acc, x| x.save(acc));
-
-            let path = SvgPath::new()
-                .set("fill", "none")
-                .set("stroke", "black")
-                .set("stroke-width", 3)
-                .set("d", data.close());
-
-            let document = Document::new().add(path);
-
-            svg::save(pathbuf, &document).unwrap();
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum EditMessage {
-    AddCurve(Curve),
-    SelectCurve(Option<usize>),
-}
-
-#[derive(Debug, Default)]
-pub struct Edit {
-    pub pending: Pending,
-    curves: Vec<Curve>,
-    selected_curve: Option<usize>,
-}
-
-impl Edit {
-    pub fn update(&mut self, message: EditMessage) {
-        match message {
-            EditMessage::AddCurve(c) => self.curves.push(c),
-            EditMessage::SelectCurve(c) => self.selected_curve = c,
-        }
-        self.pending.request_redraw();
-    }
-
-    pub fn view(&mut self) -> Element<EditMessage> {
-        let main_content = Column::new()
-            .padding(20)
-            .spacing(20)
-            .align_items(Alignment::Center)
-            .push(self.pending.view(&self.curves, &self.selected_curve));
-
-        Column::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .push(main_content)
-            .into()
-    }
-
-    pub fn reset(&mut self) {
-        self.pending.curve.points.clear();
-        self.curves.clear();
-    }
-
-    pub fn save(&self) {
-        Curves::save(&self.curves);
     }
 }

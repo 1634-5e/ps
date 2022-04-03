@@ -2,10 +2,7 @@
 
 use std::path::PathBuf;
 
-use iced::canvas::Cursor;
 use serde::{Deserialize, Serialize};
-
-use crate::ui::{Curve, Pending};
 
 #[derive(Debug, Clone, Copy)]
 enum Error {}

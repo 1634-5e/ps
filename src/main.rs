@@ -161,7 +161,7 @@ impl Application for Ps {
                     }
                     ToolbarMessage::Save => state.edit.save(),
                     ToolbarMessage::SelectShape(s) => {
-                        state.edit.pending.change_shape(s);
+                        state.edit.change_shape(s);
                     }
                     ToolbarMessage::Open => match pick() {
                         Some(p) => {
