@@ -115,20 +115,22 @@ impl Curve {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Pending {
     curve: Curve,
     cache: canvas::Cache,
 }
 
-impl Pending {
-    pub fn new() -> Self {
+impl Default for Pending {
+    fn default() -> Self {
         Pending {
             curve: Curve::new(Shape::Rectangle, Color::BLACK, 2.0),
             cache: canvas::Cache::new(),
         }
     }
+}
 
+impl Pending {
     pub fn update(&mut self, new: Point) -> Option<Curve> {
         let labor: usize = self.curve.labor().into();
         self.curve.points.push(new);
@@ -326,9 +328,11 @@ impl Edit {
             EditMessage::AddCurve(c) => self.curves.push(c),
             EditMessage::SelectCurve(c) => self.selected_curve = c,
         }
+        self.pending.request_redraw();
     }
 
     pub fn view(&mut self) -> Element<EditMessage> {
+        println!("{:?}", self.curves);
         let main_content = Column::new()
             .padding(20)
             .spacing(20)

@@ -31,7 +31,12 @@ impl Viewer {
                     (Some(pre), Some(new)) => *pre = old_length + new,
                     _ => {}
                 }
+                if self.on_view.is_none() {
+                    self.on_view = on_view;
+                }
                 self.images.append(&mut images);
+                println!("loaded images...");
+                println!("{:?}", self.images);
             }
             ViewerMessage::CloseNotFound => self.close(),
             ViewerMessage::NavigateBack => {
@@ -83,6 +88,7 @@ impl Viewer {
                         )
                 }
                 .width(Length::Fill)
+                .padding(5)
                 .align_items(Alignment::Center)
                 .push(Text::new(format!("{} / {}", index + 1, self.images.len())));
 

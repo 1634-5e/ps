@@ -86,6 +86,7 @@ pub async fn open(paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, O
             }
         } else {
             images.push(path);
+            current = Some(0);
         }
     }
     (images, current)

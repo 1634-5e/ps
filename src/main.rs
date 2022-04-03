@@ -46,6 +46,7 @@ use std::env;
 
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
+use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
 
 use io::*;
@@ -91,7 +92,7 @@ impl Application for Ps {
 
     fn new(flags: Flags) -> (Ps, Command<Message>) {
         let command = match &flags.env_args[..] {
-            [_, to_open @ ..] => {
+            [_, to_open @ ..] if !to_open.is_empty() => {
                 Command::perform(open(to_open.to_vec(), true), ViewerMessage::ImageLoaded)
                     .map(Message::Viewer)
             }
@@ -147,8 +148,22 @@ impl Application for Ps {
                         state.edit.pending.change_shape(s);
                     }
                 },
+                Message::ExternEvent(ee) => match ee {
+                    Event::Window(we) => match we {
+                        WindowEvent::FileDropped(fd) => {
+                            return Command::perform(
+                                open(vec![fd], false),
+                                ViewerMessage::ImageLoaded,
+                            )
+                            .map(Message::Viewer);
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                },
                 Message::Viewer(vm) => state.viewer.update(vm),
                 Message::Edit(em) => state.edit.update(em),
+
                 _ => {}
             },
         }
@@ -173,6 +188,7 @@ impl Application for Ps {
                 Column::new()
                     .width(Length::Fill)
                     .height(Length::Fill)
+                    .padding(15)
                     .push(toolbar)
                     .push(main_content)
                     .into()
