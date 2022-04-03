@@ -8,6 +8,8 @@ use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
+// use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
+
 use super::{style, utils::get_size};
 use crate::io::dialogs::save as save_file;
 
@@ -114,6 +116,20 @@ impl Curve {
         }
     }
 }
+
+// impl Serialize for Curve {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let mut s = serializer.serialize_struct("Curve", 4)?;
+//         s.serialize_field("points", &self.points)?;
+//         s.serialize_field("kind", &self.kind)?;
+//         s.serialize_field("color", &self.color)?;
+//         s.serialize_field("width", &self.width)?;
+//         s.end()
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Pending {
@@ -332,7 +348,6 @@ impl Edit {
     }
 
     pub fn view(&mut self) -> Element<EditMessage> {
-        println!("{:?}", self.curves);
         let main_content = Column::new()
             .padding(20)
             .spacing(20)

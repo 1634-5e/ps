@@ -14,12 +14,12 @@ pub enum ViewerMessage {
 
 #[derive(Debug, Default, Clone)]
 pub struct Viewer {
-    images: Vec<PathBuf>,
-    on_view: Option<usize>,
+    pub images: Vec<PathBuf>,
+    pub on_view: Option<usize>,
 
-    previous: button::State,
-    next: button::State,
-    close_not_found: button::State,
+    pub previous: button::State,
+    pub next: button::State,
+    pub close_not_found: button::State,
 }
 
 impl Viewer {
@@ -35,8 +35,6 @@ impl Viewer {
                     self.on_view = on_view;
                 }
                 self.images.append(&mut images);
-                println!("loaded images...");
-                println!("{:?}", self.images);
             }
             ViewerMessage::CloseNotFound => self.close(),
             ViewerMessage::NavigateBack => {

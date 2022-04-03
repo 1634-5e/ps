@@ -1,4 +1,4 @@
-use iced::{button, Button, Element, Row, Text, Length};
+use iced::{button, Button, Element, Length, Row, Text};
 
 use super::{style, Shape};
 
@@ -8,6 +8,7 @@ pub enum ToolbarMessage {
     Close,
     ClearImages,
     New,
+    Open,
 
     //edit
     Back,
@@ -19,6 +20,7 @@ pub enum ToolbarMessage {
 #[derive(Debug, Default, Clone)]
 pub struct Toolbar {
     //view
+    open: button::State,
     close: button::State,
     clear_images: button::State,
     new: button::State,
@@ -35,53 +37,55 @@ impl Toolbar {
     pub fn editing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
             .height(Length::Units(100))
-            .push(
-                Button::new(&mut self.back, Text::new("back"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::Back),
-            )
-            .push(
-                Button::new(&mut self.clear_canvas, Text::new("clear"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::ClearCanvas),
-            )
-            .push(
-                Button::new(&mut self.save, Text::new("save"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::Save),
-            )
-            .push(
-                Button::new(&mut self.rectangle, Text::new("rectangle"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::SelectShape(Shape::Rectangle)),
-            )
-            .push(
-                Button::new(&mut self.triangle, Text::new("triangle"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::SelectShape(Shape::Triangle)),
-            )
+            .push(button(&mut self.back, "back", Some(ToolbarMessage::Back)))
+            .push(button(
+                &mut self.clear_canvas,
+                "clear",
+                Some(ToolbarMessage::ClearCanvas),
+            ))
+            .push(button(&mut self.save, "save", Some(ToolbarMessage::Save)))
+            .push(button(
+                &mut self.rectangle,
+                "rectangle",
+                Some(ToolbarMessage::SelectShape(Shape::Rectangle)),
+            ))
+            .push(button(
+                &mut self.triangle,
+                "triangle",
+                Some(ToolbarMessage::SelectShape(Shape::Triangle)),
+            ))
             .into()
     }
 
     pub fn viewing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
             .height(Length::Units(100))
-            .push(
-                Button::new(&mut self.close, Text::new("close"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::Close),
-            )
-            .push(
-                Button::new(&mut self.clear_images, Text::new("clear"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::ClearImages),
-            )
-            .push(
-                Button::new(&mut self.new, Text::new("new"))
-                    .style(style::Button::Toolbar)
-                    .on_press(ToolbarMessage::New),
-            )
+            .push(button(&mut self.open, "open", Some(ToolbarMessage::Open)))
+            .push(button(
+                &mut self.close,
+                "close",
+                Some(ToolbarMessage::Close),
+            ))
+            .push(button(
+                &mut self.clear_images,
+                "clear",
+                Some(ToolbarMessage::ClearImages),
+            ))
+            .push(button(&mut self.new, "new", Some(ToolbarMessage::New)))
             .into()
+    }
+}
+
+fn button<'a>(
+    state: &'a mut button::State,
+    text: &str,
+    message: Option<ToolbarMessage>,
+) -> Button<'a, ToolbarMessage> {
+    let button = Button::new(state, Text::new(text)).style(style::Button::Toolbar);
+    if let Some(m) = message {
+        button.on_press(m)
+    } else {
+        button
     }
 }
 

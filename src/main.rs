@@ -25,7 +25,8 @@ mod io {
     pub mod dialogs;
     pub mod last_place;
 
-    pub use dialogs::{open, pick, save, DialogType, PathBuf};
+    pub use dialogs::{open, pick, save, PathBuf};
+    pub use last_place::*;
 }
 
 mod ui {
@@ -75,7 +76,7 @@ pub enum Message {
     Viewer(ViewerMessage),
     Edit(EditMessage),
     Toolbar(ToolbarMessage),
-    StateRestored(Option<State>),
+    StateRestored(Option<SavedState>),
     ExternEvent(Event),
 }
 
@@ -109,7 +110,22 @@ impl Application for Ps {
         match self {
             Ps::Loading => match message {
                 Message::StateRestored(state) => match state {
-                    Some(s) => *self = Ps::Loaded(Box::new(s)),
+                    Some(s) => {
+                        let SavedState {
+                            is_editing,
+                            images,
+                            on_view,
+                        } = s;
+                        *self = Ps::Loaded(Box::new(State {
+                            viewer: Viewer {
+                                images,
+                                on_view,
+                                ..Viewer::default()
+                            },
+                            is_editing,
+                            ..State::default()
+                        }));
+                    }
                     None => {
                         println!("Program failed to restore last state.");
                         *self = Ps::Loaded(Box::new(State::default()))
@@ -147,6 +163,13 @@ impl Application for Ps {
                     ToolbarMessage::SelectShape(s) => {
                         state.edit.pending.change_shape(s);
                     }
+                    ToolbarMessage::Open => match pick() {
+                        Some(p) => {
+                            return Command::perform(open(p, true), ViewerMessage::ImageLoaded)
+                                .map(Message::Viewer)
+                        }
+                        None => {}
+                    },
                 },
                 Message::ExternEvent(ee) => match ee {
                     Event::Window(we) => match we {
