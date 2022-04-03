@@ -31,6 +31,7 @@ mod io {
 
 mod ui {
     pub mod edit;
+    mod icons;
     pub mod style;
     pub mod toolbar;
     mod utils;
@@ -174,6 +175,7 @@ impl Application for Ps {
                 Message::ExternEvent(ee) => match ee {
                     Event::Window(we) => match we {
                         WindowEvent::FileDropped(fd) => {
+                            state.is_editing = false;
                             return Command::perform(
                                 open(vec![fd], false),
                                 ViewerMessage::ImageLoaded,

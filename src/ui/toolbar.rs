@@ -1,5 +1,6 @@
-use iced::{button, Button, Element, Length, Row, Text};
+use iced::{button, Alignment, Button, Column, Element, Length, Row, Text};
 
+use super::icons;
 use super::{style, Shape};
 
 #[derive(Debug, Clone)]
@@ -16,7 +17,6 @@ pub enum ToolbarMessage {
     Save,
     SelectShape(Shape),
 }
-
 
 //TODO:按钮要能改样式，但是不想每个都多一个bool
 #[derive(Debug, Default, Clone)]
@@ -39,20 +39,33 @@ impl Toolbar {
     pub fn editing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
             .height(Length::Units(100))
-            .push(button(&mut self.back, "back", Some(ToolbarMessage::Back)))
+            .push(button(
+                &mut self.back,
+                icons::duplicate(),
+                "back",
+                Some(ToolbarMessage::Back),
+            ))
             .push(button(
                 &mut self.clear_canvas,
+                icons::delete(),
                 "clear",
                 Some(ToolbarMessage::ClearCanvas),
             ))
-            .push(button(&mut self.save, "save", Some(ToolbarMessage::Save)))
+            .push(button(
+                &mut self.save,
+                icons::duplicate(),
+                "save",
+                Some(ToolbarMessage::Save),
+            ))
             .push(button(
                 &mut self.rectangle,
+                icons::duplicate(),
                 "rectangle",
                 Some(ToolbarMessage::SelectShape(Shape::Rectangle)),
             ))
             .push(button(
                 &mut self.triangle,
+                icons::duplicate(),
                 "triangle",
                 Some(ToolbarMessage::SelectShape(Shape::Triangle)),
             ))
@@ -62,28 +75,49 @@ impl Toolbar {
     pub fn viewing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
             .height(Length::Units(100))
-            .push(button(&mut self.open, "open", Some(ToolbarMessage::Open)))
+            .push(button(
+                &mut self.open,
+                icons::load(),
+                "open",
+                Some(ToolbarMessage::Open),
+            ))
             .push(button(
                 &mut self.close,
+                icons::delete(),
                 "close",
                 Some(ToolbarMessage::Close),
             ))
             .push(button(
                 &mut self.clear_images,
+                icons::delete(),
                 "clear",
                 Some(ToolbarMessage::ClearImages),
             ))
-            .push(button(&mut self.new, "new", Some(ToolbarMessage::New)))
+            .push(button(
+                &mut self.new,
+                icons::duplicate(),
+                "new",
+                Some(ToolbarMessage::New),
+            ))
             .into()
     }
 }
 
 fn button<'a>(
     state: &'a mut button::State,
+    icon: Text,
     text: &str,
     message: Option<ToolbarMessage>,
 ) -> Button<'a, ToolbarMessage> {
-    let button = Button::new(state, Text::new(text)).style(style::Button::Toolbar);
+    let button = Button::new(
+        state,
+        Column::new()
+            .align_items(Alignment::Center)
+            .spacing(5)
+            .push(icon)
+            .push(Text::new(text)),
+    )
+    .style(style::Button::Toolbar);
     if let Some(m) = message {
         button.on_press(m)
     } else {

@@ -56,6 +56,7 @@ impl Viewer {
     }
 
     pub fn view(&mut self) -> Element<ViewerMessage> {
+        println!("{:?}", self.images);
         Container::new(match self.on_view {
             Some(index) => {
                 let mut row = Row::new().align_items(Alignment::Center);
@@ -86,7 +87,7 @@ impl Viewer {
                         )
                 }
                 .width(Length::Fill)
-                .padding(5)
+                .spacing(7)
                 .align_items(Alignment::Center)
                 .push(Text::new(format!("{} / {}", index + 1, self.images.len())));
 

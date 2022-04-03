@@ -224,6 +224,7 @@ impl Edit {
     pub fn reset(&mut self) {
         self.pending.points.clear();
         self.curves.clear();
+        self.request_redraw();
     }
 
     pub fn save(&self) {
