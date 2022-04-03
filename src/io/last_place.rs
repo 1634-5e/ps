@@ -8,5 +8,5 @@ enum Error {}
 pub async fn save() {}
 
 pub async fn load() -> Option<State> {
-    todo!()
+    None
 }

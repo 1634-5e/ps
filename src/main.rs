@@ -2,17 +2,19 @@
 #![feature(derive_default_enum)]
 #![feature(associated_type_bounds)]
 
+//暂时放下用户设置部分
+
 pub fn main() -> iced::Result {
     //处理拖拽事件,第一个值是程序的路径（可能是相对路径，也可能是绝对路径），后面的应该全是被拖拽文件（夹）的路径
     let env_args: Vec<PathBuf> = env::args().map(|s| PathBuf::from(s)).collect();
-    let user_settings = Rc::new(RefCell::new(UserSettings {
-        automatic_load: true,
-    })); //恢复用户设置，目前没做
+    // let user_settings = Rc::new(RefCell::new(UserSettings {
+    //     automatic_load: true,
+    // })); //恢复用户设置，目前没做
 
     Ps::run(Settings {
         flags: Flags {
             env_args,
-            user_settings,
+            // user_settings,
         },
         antialiasing: true,
         ..Settings::default()
@@ -22,61 +24,64 @@ pub fn main() -> iced::Result {
 mod io {
     pub mod dialogs;
     pub mod last_place;
+
+    pub use dialogs::{open, pick, save, DialogType, PathBuf};
 }
 
 mod ui {
     pub mod edit;
     pub mod style;
+    pub mod toolbar;
     mod utils;
     pub mod viewer;
+    pub mod welcome;
 
     pub use edit::*;
+    pub use toolbar::*;
     pub use viewer::*;
+    pub use welcome::welcome;
 }
 
+use std::env;
+
+use iced::{Application, Column, Length, Settings};
+use iced::{Command, Element, Subscription};
+use iced_native::Event;
+
+use io::*;
+
 #[derive(Debug, Clone, Default)]
-pub struct Flags {
+pub(crate) struct Flags {
     pub(crate) env_args: Vec<PathBuf>,
-    pub(crate) user_settings: Rc<RefCell<UserSettings>>,
+    // pub(crate) user_settings: Rc<RefCell<UserSettings>>,
 }
 
 //TODO: 这里应该使用Rc<RefCell>
-#[derive(Debug, Clone, Default)]
-pub struct UserSettings {
-    pub(crate) automatic_load: bool, //这一项继续细分可以包括：按钮打开自动、拖拽到图标自动、拖拽到应用自动、以及全关
-}
-
-use std::{cell::RefCell, env, path::PathBuf, rc::Rc};
-
-use iced::{Application, Settings};
-use iced::{Command, Element, Subscription};
-use iced_native::window::Event as WindowEvent;
-use iced_native::Event;
-
+use io::dialogs::open;
 use io::last_place;
 use ui::*;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct State {
     viewer: Viewer,
     edit: Edit,
-    images: Vec<PathBuf>,
-    on_view: usize,
+    toolbar: Toolbar,
+    is_editing: bool,
 }
 
 #[derive(Debug)]
-enum Message {
-    ImageBox(ViewerMessage),
+pub enum Message {
+    Viewer(ViewerMessage),
     Edit(EditMessage),
-    SessionRestored(Option<State>),
-    ImageLoaded((Vec<PathBuf>, usize)),
+    Toolbar(ToolbarMessage),
+    StateRestored(Option<State>),
     ExternEvent(Event),
 }
 
 #[derive(Debug)]
 enum Ps {
     Loading,
-    Loaded(Box<State>), //TODO:是否用Box还需要比较
+    Loaded(Box<State>),
 }
 
 impl Application for Ps {
@@ -84,72 +89,98 @@ impl Application for Ps {
     type Message = Message;
     type Flags = Flags;
 
-    fn new(mut flags: Flags) -> (Ps, Command<Message>) {
-        (
-            Ps::Loading,
-            Command::perform(last_place::load(), Message::SessionRestored),
-        )
+    fn new(flags: Flags) -> (Ps, Command<Message>) {
+        let command = match &flags.env_args[..] {
+            [_, to_open @ ..] => {
+                Command::perform(open(to_open.to_vec(), true), ViewerMessage::ImageLoaded)
+                    .map(Message::Viewer)
+            }
+            _ => Command::perform(last_place::load(), Message::StateRestored),
+        };
+        (Ps::Loading, command)
     }
 
     fn title(&self) -> String {
-        todo!()
+        String::from("Ps")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
-        todo!()
+        match self {
+            Ps::Loading => match message {
+                Message::StateRestored(state) => match state {
+                    Some(s) => *self = Ps::Loaded(Box::new(s)),
+                    None => {
+                        println!("Program failed to restore last state.");
+                        *self = Ps::Loaded(Box::new(State::default()))
+                    }
+                },
+                Message::Viewer(ViewerMessage::ImageLoaded(data)) => {
+                    *self = Ps::Loaded(Box::new(State::default()));
+                    if let Ps::Loaded(state) = self {
+                        state.viewer.update(ViewerMessage::ImageLoaded(data));
+                    }
+                }
+                _ => {}
+            },
+            Ps::Loaded(state) => match message {
+                Message::Toolbar(tm) => match tm {
+                    //view
+                    ToolbarMessage::Close => {
+                        state.viewer.close();
+                    }
+                    ToolbarMessage::ClearImages => {
+                        state.viewer.clear();
+                    }
+                    ToolbarMessage::New => {
+                        state.is_editing = true;
+                    }
+
+                    //edit
+                    ToolbarMessage::Back => {
+                        state.is_editing = false;
+                    }
+                    ToolbarMessage::ClearCanvas => {
+                        state.edit.reset();
+                    }
+                    ToolbarMessage::Save => state.edit.save(),
+                    ToolbarMessage::SelectShape(s) => {
+                        state.edit.pending.change_shape(s);
+                    }
+                },
+                Message::Viewer(vm) => state.viewer.update(vm),
+                Message::Edit(em) => state.edit.update(em),
+                _ => {}
+            },
+        }
+        Command::none()
     }
 
     fn view(&mut self) -> Element<Message> {
-        todo!()
+        match self {
+            Ps::Loading => welcome(),
+            Ps::Loaded(state) => {
+                let (main_content, toolbar) = if state.is_editing {
+                    (
+                        state.edit.view().map(Message::Edit),
+                        state.toolbar.editing().map(Message::Toolbar),
+                    )
+                } else {
+                    (
+                        state.viewer.view().map(Message::Viewer),
+                        state.toolbar.viewing().map(Message::Toolbar),
+                    )
+                };
+                Column::new()
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .push(toolbar)
+                    .push(main_content)
+                    .into()
+            }
+        }
     }
 
     fn subscription(&self) -> Subscription<Message> {
         iced_native::subscription::events().map(Message::ExternEvent)
     }
 }
-
-//Viewer相应留下来的update
-// fn update(
-//     &mut self,
-//     message: ViewerMessage,
-//     settings: Rc<RefCell<UserSettings>>,
-// ) -> Command<ViewerMessage> {
-//     match message {
-//         ViewerMessage::ImageLoaded(res) => match res {
-//             Ok((mut images, current)) => {
-//                 self.current = current + self.images.len();
-//                 self.images.append(&mut images);
-//                 self.status = Status::View;
-//                 if self.images.len() > 1 {
-//                     self.buttons.previous.disabled = false;
-//                     self.buttons.next.disabled = false;
-//                 }
-//             }
-//             Err(e) => {
-//                 self.status = Status::Errored(e.into());
-//             }
-//         },
-//         ViewerMessage::Navigate(n) => {
-//             self.navigate(n);
-//         }
-//         ViewerMessage::PickImage(dp) => match pick_in_dialog(dp) {
-//             Some(path) => {
-//                 self.status = Status::Loading;
-//                 match settings.try_borrow() {
-//                     Ok(settings) => {
-//                         return Command::perform(
-//                             open(vec![path], settings.automatic_load),
-//                             ViewerMessage::ImageLoaded,
-//                         );
-//                     }
-//                     Err(e) => self.status = Status::Errored(e.into()),
-//                 }
-//             }
-//             None => {}
-//         },
-//         ViewerMessage::Close => self.close_this(),
-//         ViewerMessage::Clear => self.close_all(),
-//         _ => {}
-//     }
-//     Command::none()
-// }

@@ -1,136 +1,121 @@
-use std::{
-    cell::RefCell,
-    ops::{Index, IndexMut},
-    rc::Rc,
-};
-
 use iced::{
-    button::{self, State as ButtonState},
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    mouse, Alignment, Button, Color, Column, Command, Element, Length, Point, Rectangle, Row, Text,
+    mouse, Alignment, Color, Column, Element, Length, Point, Rectangle,
 };
 
 use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
-use crate::{Flags, UserSettings};
-
 use super::{style, utils::get_size};
 use crate::io::dialogs::save as save_file;
 
-#[derive(Debug, Clone)]
-pub enum EditMessage {
-    CurvesMessage(CurvesMessage),
-    SelectShapeKind(ShapeKind),
-    Clear,
-    Save,
-    Back,
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Shape {
+    #[default]
+    Rectangle,
+    Triangle,
 }
 
-#[derive(Debug)]
-pub struct Edit {
-    pub pending: Pending,
-    curves: Vec<Curve>,
-    selected_curve: Option<usize>,
-    buttons: Buttons,
+#[derive(Debug, Clone, Default)]
+pub struct Curve {
+    points: Vec<Point>,
+    kind: Shape,
+    color: Color,
+    width: f32,
 }
 
-impl Edit {
-    fn new(_flags: &mut Flags) -> (Self, Command<EditMessage>) {
-        let mut canvas = Edit {
-            pending: Pending::new(),
-            curves: vec![],
-            selected_curve: None,
-            buttons: Buttons::default(),
-        };
-        (canvas, Command::none())
-    }
-
-    fn update(
-        &mut self,
-        message: EditMessage,
-        _settings: Rc<RefCell<UserSettings>>,
-    ) -> Command<EditMessage> {
-        match message {
-            EditMessage::CurvesMessage(cm) => match cm {
-                CurvesMessage::AddCurve(curve) => {
-                    self.curves.push(curve);
-                }
-                CurvesMessage::SelectCurve(i) => {
-                    if self.selected_curve == i {
-                        self.selected_curve = None;
-                    } else {
-                        self.selected_curve = i
-                    }
-                }
-            },
-            EditMessage::Clear => {
-                self.pending.curve.points.clear();
-                self.curves.clear();
-            }
-            EditMessage::Save => Curves::save(&self.curves),
-            EditMessage::SelectShapeKind(s) => {
-                self.pending.change_shape(s);
-            }
-            _ => {}
+impl Curve {
+    pub fn new(kind: Shape, color: Color, width: f32) -> Self {
+        Curve {
+            points: vec![],
+            kind,
+            color,
+            width,
         }
-        self.pending.request_redraw();
-        Command::none()
     }
 
-    fn view(&mut self, _settings: Rc<RefCell<UserSettings>>) -> Element<EditMessage> {
-        let main_content = Column::new()
-            .padding(20)
-            .spacing(20)
-            .align_items(Alignment::Center)
-            .push(
-                self.pending
-                    .view(&self.curves, &self.selected_curve)
-                    .map(EditMessage::CurvesMessage),
-            )
-            .push(
-                Row::new()
-                    .push(
-                        Button::new(&mut self.buttons.back, Text::new("Back"))
-                            .padding(8)
-                            .on_press(EditMessage::Back),
-                    )
-                    .push(
-                        Button::new(&mut self.buttons.clear, Text::new("Clear"))
-                            .padding(8)
-                            .on_press(EditMessage::Clear),
-                    )
-                    .push(
-                        Button::new(&mut self.buttons.save, Text::new("Save"))
-                            .padding(8)
-                            .on_press(EditMessage::Save),
-                    ),
-            );
+    pub fn labor(&self) -> u16 {
+        match self.kind {
+            Shape::Rectangle => 2,
+            Shape::Triangle => 3,
+        }
+    }
 
-        let toolbar = Row::new()
-            .push(
-                Button::new(&mut self.buttons.shapes.rectangle, Text::new("rectangle"))
-                    .style(style::Button::Toolbar)
-                    .on_press(EditMessage::SelectShapeKind(ShapeKind::Rectangle)),
-            )
-            .push(
-                Button::new(&mut self.buttons.shapes.triangle, Text::new("triangle"))
-                    .style(style::Button::Toolbar)
-                    .on_press(EditMessage::SelectShapeKind(ShapeKind::Triangle)),
-            );
+    #[inline(always)]
+    pub fn draw(curve: &Curve, frame: &mut Frame, selected: bool) {
+        assert!(curve.points.len() == curve.labor().into());
+        let path = Path::new(|builder| match curve.kind {
+            Shape::Rectangle => {
+                if let [top_left, right_bottom] = curve.points[..] {
+                    builder.rectangle(top_left, get_size(top_left, right_bottom));
+                }
+            }
+            Shape::Triangle => {
+                if let [a, b, c] = curve.points[..] {
+                    builder.move_to(a);
+                    builder.line_to(b);
+                    builder.line_to(c);
+                    builder.line_to(a);
+                }
+            }
+        });
+        frame.stroke(
+            &path,
+            Stroke {
+                width: curve.width,
+                color: curve.color,
+                ..Stroke::default()
+            },
+        );
 
-        Column::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .push(toolbar)
-            .push(main_content)
-            .into()
+        if selected {
+            let selection_highlight = Path::new(|b| {
+                for point in curve.points.iter() {
+                    b.circle(*point, 8.0);
+                }
+            });
+
+            frame.stroke(
+                &selection_highlight,
+                Stroke {
+                    width: 1.0,
+                    color: Color::from_rgb(255.0, 255.0, 0.0),
+                    ..Stroke::default()
+                },
+            );
+        }
+    }
+
+    #[inline(always)]
+    pub fn save(&self, data: Data) -> Data {
+        match self.kind {
+            Shape::Rectangle => {
+                assert!(self.points.len() == 2);
+                let Point { x: x1, y: y1 } = self.points[0];
+                let Point { x: x2, y: y2 } = self.points[1];
+                data.move_to((x1, y1))
+                    .line_to((x2, y1))
+                    .line_to((x2, y2))
+                    .line_to((x1, y2))
+                    .line_to((x1, y1))
+            }
+            Shape::Triangle => {
+                assert!(self.points.len() == 3);
+                let Point { x: ax, y: ay } = self.points[0];
+                let Point { x: bx, y: by } = self.points[1];
+                let Point { x: cx, y: cy } = self.points[2];
+                data.move_to((ax, ay))
+                    .line_to((bx, by))
+                    .line_to((cx, cy))
+                    .line_to((ax, ay))
+            }
+        }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Pending {
     curve: Curve,
     cache: canvas::Cache,
@@ -139,7 +124,7 @@ pub struct Pending {
 impl Pending {
     pub fn new() -> Self {
         Pending {
-            curve: Curve::new(ShapeKind::Rectangle, Color::BLACK, 2.0),
+            curve: Curve::new(Shape::Rectangle, Color::BLACK, 2.0),
             cache: canvas::Cache::new(),
         }
     }
@@ -162,14 +147,14 @@ impl Pending {
 
         if let Some(cursor_position) = cursor.position_in(&bounds) {
             let path = Path::new(|p| match self.curve.kind {
-                ShapeKind::Rectangle => {
+                Shape::Rectangle => {
                     if self.curve.points.len() == 1 {
                         let top_left = self.curve.points[0];
                         let right_bottom = cursor_position;
                         p.rectangle(top_left, get_size(top_left, right_bottom));
                     }
                 }
-                ShapeKind::Triangle => {
+                Shape::Triangle => {
                     let len = self.curve.points.len();
                     if len == 1 {
                         p.move_to(self.curve.points[0]);
@@ -199,7 +184,7 @@ impl Pending {
         &'a mut self,
         curves: &'a [Curve],
         selected: &'a Option<usize>,
-    ) -> Element<'a, CurvesMessage> {
+    ) -> Element<'a, EditMessage> {
         IcedCanvas::new(Curves {
             pending: self,
             curves,
@@ -214,30 +199,24 @@ impl Pending {
         self.cache.clear()
     }
 
-    pub fn change_shape(&mut self, s: ShapeKind) {
+    pub fn change_shape(&mut self, s: Shape) {
         self.curve.kind = s;
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum CurvesMessage {
-    AddCurve(Curve),
-    SelectCurve(Option<usize>),
-}
-
-struct Curves<'a> {
+pub struct Curves<'a> {
     pending: &'a mut Pending,
     curves: &'a [Curve],
     selected: &'a Option<usize>,
 }
 
-impl<'a> canvas::Program<CurvesMessage> for Curves<'a> {
+impl<'a> canvas::Program<EditMessage> for Curves<'a> {
     fn update(
         &mut self,
         event: Event,
         bounds: Rectangle,
         cursor: Cursor,
-    ) -> (event::Status, Option<CurvesMessage>) {
+    ) -> (event::Status, Option<EditMessage>) {
         let cursor_position = if let Some(position) = cursor.position_in(&bounds) {
             position
         } else {
@@ -255,17 +234,14 @@ impl<'a> canvas::Program<CurvesMessage> for Curves<'a> {
                                     if cursor_position.distance(*point) < 5.0 {
                                         return (
                                             event::Status::Captured,
-                                            Some(CurvesMessage::SelectCurve(Some(index))),
+                                            Some(EditMessage::SelectCurve(Some(index))),
                                         );
                                     }
                                 }
                             }
                         }
                         if let Some(curve) = self.pending.update(cursor_position) {
-                            return (
-                                event::Status::Captured,
-                                Some(CurvesMessage::AddCurve(curve)),
-                            );
+                            return (event::Status::Captured, Some(EditMessage::AddCurve(curve)));
                         }
                     }
                     _ => {}
@@ -314,7 +290,7 @@ impl<'a> canvas::Program<CurvesMessage> for Curves<'a> {
 }
 
 impl<'a> Curves<'a> {
-    fn save(curves: &'a [Curve]) {
+    pub fn save(curves: &'a [Curve]) {
         if let Some(pathbuf) = save_file() {
             let data = curves.iter().fold(Data::new(), |acc, x| x.save(acc));
 
@@ -331,142 +307,47 @@ impl<'a> Curves<'a> {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ShapeKind {
-    #[default]
-    Rectangle,
-    Triangle,
-}
-
 #[derive(Debug, Clone)]
-pub struct Curve {
-    points: Vec<Point>,
-    kind: ShapeKind,
-    color: Color,
-    width: f32,
+pub enum EditMessage {
+    AddCurve(Curve),
+    SelectCurve(Option<usize>),
 }
 
-impl Curve {
-    pub fn new(kind: ShapeKind, color: Color, width: f32) -> Self {
-        Curve {
-            points: vec![],
-            kind,
-            color,
-            width,
+#[derive(Debug, Default)]
+pub struct Edit {
+    pub pending: Pending,
+    curves: Vec<Curve>,
+    selected_curve: Option<usize>,
+}
+
+impl Edit {
+    pub fn update(&mut self, message: EditMessage) {
+        match message {
+            EditMessage::AddCurve(c) => self.curves.push(c),
+            EditMessage::SelectCurve(c) => self.selected_curve = c,
         }
     }
 
-    pub fn labor(&self) -> u16 {
-        match self.kind {
-            ShapeKind::Rectangle => 2,
-            ShapeKind::Triangle => 3,
-        }
+    pub fn view(&mut self) -> Element<EditMessage> {
+        let main_content = Column::new()
+            .padding(20)
+            .spacing(20)
+            .align_items(Alignment::Center)
+            .push(self.pending.view(&self.curves, &self.selected_curve));
+
+        Column::new()
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .push(main_content)
+            .into()
     }
 
-    #[inline(always)]
-    pub fn draw(curve: &Curve, frame: &mut Frame, selected: bool) {
-        assert!(curve.points.len() == curve.labor().into());
-        let path = Path::new(|builder| match curve.kind {
-            ShapeKind::Rectangle => {
-                if let [top_left, right_bottom] = curve.points[..] {
-                    builder.rectangle(top_left, get_size(top_left, right_bottom));
-                }
-            }
-            ShapeKind::Triangle => {
-                if let [a, b, c] = curve.points[..] {
-                    builder.move_to(a);
-                    builder.line_to(b);
-                    builder.line_to(c);
-                    builder.line_to(a);
-                }
-            }
-        });
-        frame.stroke(
-            &path,
-            Stroke {
-                width: curve.width,
-                color: curve.color,
-                ..Stroke::default()
-            },
-        );
-
-        if selected {
-            let selection_highlight = Path::new(|b| {
-                for point in curve.points.iter() {
-                    b.circle(*point, 8.0);
-                }
-            });
-
-            frame.stroke(
-                &selection_highlight,
-                Stroke {
-                    width: 1.0,
-                    color: Color::from_rgb(255.0, 255.0, 0.0),
-                    ..Stroke::default()
-                },
-            );
-        }
+    pub fn reset(&mut self) {
+        self.pending.curve.points.clear();
+        self.curves.clear();
     }
 
-    #[inline(always)]
-    pub fn save(&self, data: Data) -> Data {
-        match self.kind {
-            ShapeKind::Rectangle => {
-                assert!(self.points.len() == 2);
-                let Point { x: x1, y: y1 } = self.points[0];
-                let Point { x: x2, y: y2 } = self.points[1];
-                data.move_to((x1, y1))
-                    .line_to((x2, y1))
-                    .line_to((x2, y2))
-                    .line_to((x1, y2))
-                    .line_to((x1, y1))
-            }
-            ShapeKind::Triangle => {
-                assert!(self.points.len() == 3);
-                let Point { x: ax, y: ay } = self.points[0];
-                let Point { x: bx, y: by } = self.points[1];
-                let Point { x: cx, y: cy } = self.points[2];
-                data.move_to((ax, ay))
-                    .line_to((bx, by))
-                    .line_to((cx, cy))
-                    .line_to((ax, ay))
-            }
-        }
+    pub fn save(&self) {
+        Curves::save(&self.curves);
     }
 }
-
-#[derive(Default, Debug)]
-struct Buttons {
-    clear: ButtonState,
-    save: ButtonState,
-    back: ButtonState,
-    shapes: Shapes,
-}
-
-#[derive(Default, Debug)]
-struct Shapes {
-    rectangle: button::State,
-    triangle: button::State,
-    selected_shape: ShapeKind,
-}
-
-//currently useless
-// impl Index<ShapeKind> for Shapes {
-//     type Output = button::State;
-
-//     fn index(&self, s: ShapeKind) -> &Self::Output {
-//         match s {
-//             ShapeKind::Rectangle => &self.rectangle,
-//             ShapeKind::Triangle => &self.triangle,
-//         }
-//     }
-// }
-
-// impl IndexMut<ShapeKind> for Shapes {
-//     fn index_mut(&mut self, s: ShapeKind) -> &mut Self::Output {
-//         match s {
-//             ShapeKind::Rectangle => &mut self.rectangle,
-//             ShapeKind::Triangle => &mut self.triangle,
-//         }
-//     }
-// }

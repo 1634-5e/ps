@@ -46,13 +46,13 @@ pub fn save() -> Option<PathBuf> {
         .unwrap()
 }
 
-pub async fn open(paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, usize) {
+pub async fn open(paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, Option<usize>) {
     //要处理两个情况，
     //1：用户使用按钮打开文件或者文件夹，目前还只能打开单个文件/文件夹
     //2：用户使用拖拽方式打开，这时可能有多个路径需要处理
 
     let mut images = vec![];
-    let mut current = 0;
+    let mut current = None;
     for path in paths {
         if path.is_dir() || automatic_load {
             let parent;
@@ -62,7 +62,7 @@ pub async fn open(paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, u
                 parent = match path.parent() {
                     Some(pt) => pt,
                     None => {
-                        return (vec![], 0);
+                        return (vec![], None);
                     }
                 };
             }
@@ -74,7 +74,7 @@ pub async fn open(paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, u
                         match p.extension() {
                             Some(e) if e.eq("png") || e.eq("svg") || e.eq("jpg") => {
                                 if p == path {
-                                    current = images.len();
+                                    current = Some(images.len());
                                 }
                                 images.push(p);
                             }
