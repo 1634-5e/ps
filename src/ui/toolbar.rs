@@ -61,25 +61,25 @@ impl Toolbar {
             ))
             .push(button(
                 &mut self.rectangle,
-                icons::up_arrow(),
+                icons::rectangle(),
                 "rectangle",
                 Some(ToolbarMessage::SelectShape(Shape::Rectangle)),
             ))
             .push(button(
                 &mut self.triangle,
-                icons::down_arrow(),
+                icons::triangle(),
                 "triangle",
                 Some(ToolbarMessage::SelectShape(Shape::Triangle)),
             ))
             .push(button(
                 &mut self.quadratic_bezier,
-                icons::down_arrow(),
+                icons::quadratic_bezier(),
                 "2 Bezier",
                 Some(ToolbarMessage::SelectShape(Shape::QuadraticBezier)),
             ))
             .push(button(
                 &mut self.cubic_bezier,
-                icons::down_arrow(),
+                icons::cubic_bezier(),
                 "3 Bezier",
                 Some(ToolbarMessage::SelectShape(Shape::CubicBezier)),
             ))

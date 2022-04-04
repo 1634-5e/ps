@@ -5,6 +5,11 @@ const ICONS: Font = Font::External {
     bytes: include_bytes!("fonts/icons.ttf"),
 };
 
+// const ICONS: Font = Font::External {
+//     name: "Icons",
+//     bytes: include_bytes!("fonts/firacode_m.ttf"),
+// };
+
 fn icon(unicode: char) -> Text {
     Text::new(&unicode.to_string())
         .font(ICONS)
@@ -60,6 +65,18 @@ pub fn down_arrow() -> Text {
     icon('\u{e813}')
 }
 
-pub fn test() -> Text {
-    icon('\u{2716}')
+pub fn rectangle() -> Text {
+    icon('\u{25ad}')
+}
+
+pub fn triangle() -> Text {
+    icon('\u{25b3}')
+}
+
+pub fn quadratic_bezier() -> Text {
+    icon('\u{25af}')
+}
+
+pub fn cubic_bezier() -> Text {
+    icon('\u{25af}')
 }

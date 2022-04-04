@@ -1,9 +1,11 @@
 use std::vec;
 
 use iced::{
+    button,
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    mouse, Alignment, Color, Column, Element, Length, Point, Rectangle,
+    mouse, slider, text_input, Alignment, Button, Color, Column, Container, Element, Length, Point,
+    Rectangle, Row, Slider, Text,
 };
 
 use svg::node::element::path::Data;
@@ -12,7 +14,7 @@ use svg::Document;
 
 // use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 
-use super::utils::get_size;
+use super::{style, utils::get_size};
 use crate::io::dialogs::save as save_file;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -212,7 +214,6 @@ impl Curve {
             }
             Shape::Triangle if let [Point { x: ax, y: ay }, Point { x: bx, y: by }, Point { x: cx, y: cy }] =
             self.points[..] => {
-                
                 {
                     data
                         .move_to((ax, ay))
@@ -223,7 +224,6 @@ impl Curve {
             }
             Shape::QuadraticBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cx, y: cy }] =
             self.points[..] => {
-                
                 {
                     data
                         .move_to((fx, fy))
@@ -232,7 +232,6 @@ impl Curve {
             }
             Shape::CubicBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
             self.points[..] => {
-                
                 {
                     data
                         .move_to((fx, fy))
@@ -242,10 +241,10 @@ impl Curve {
             _ => data
         };
         SvgPath::new()
-        .set("fill", "none")
-        .set("stroke", "black")
-        .set("stroke-width", self.width)
-        .set("d", data)
+            .set("fill", "none")
+            .set("stroke", "black")
+            .set("stroke-width", self.width)
+            .set("d", data)
     }
 }
 
@@ -267,6 +266,19 @@ impl Curve {
 pub enum EditMessage {
     AddCurve(Curve),
     SelectCurve(Option<usize>),
+
+    //editable
+    InputColorR(String),
+    InputColorG(String),
+    InputColorB(String),
+
+    SlideColorR(f32),
+    SlideColorG(f32),
+    SlideColorB(f32),
+
+    InputWidth(String),
+
+    RemoveCurve,
 }
 
 #[derive(Debug, Default)]
@@ -275,6 +287,17 @@ pub struct Edit {
     curves: Vec<Curve>,
     cache: canvas::Cache,
     selected_curve: Option<usize>,
+
+    input_color_r: text_input::State,
+    input_color_g: text_input::State,
+    input_color_b: text_input::State,
+    input_width: text_input::State,
+
+    slider_color_r: slider::State,
+    slider_color_g: slider::State,
+    slider_color_b: slider::State,
+
+    remove_curve: button::State,
 }
 
 impl Edit {
@@ -282,25 +305,196 @@ impl Edit {
         match message {
             EditMessage::AddCurve(c) => self.curves.push(c),
             EditMessage::SelectCurve(c) => self.selected_curve = c,
+            EditMessage::InputColorR(r) => {
+                if let Ok(r) = r.parse::<f32>() {
+                    if is_valid_rgb(r) {
+                        if let Some(selected) = self.selected_curve {
+                            self.curves[selected].color.r = r / 255.0;
+                        } else {
+                            self.pending.color.r = r / 255.0;
+                        }
+                    }
+                }
+            }
+            EditMessage::InputColorG(g) => {
+                if let Ok(g) = g.parse::<f32>() {
+                    if is_valid_rgb(g) {
+                        if let Some(selected) = self.selected_curve {
+                            self.curves[selected].color.g = g / 255.0;
+                        } else {
+                            self.pending.color.g = g / 255.0;
+                        }
+                    }
+                }
+            }
+            EditMessage::InputColorB(b) => {
+                if let Ok(b) = b.parse::<f32>() {
+                    if is_valid_rgb(b) {
+                        if let Some(selected) = self.selected_curve {
+                            self.curves[selected].color.b = b / 255.0;
+                        } else {
+                            self.pending.color.b = b / 255.0;
+                        }
+                    }
+                }
+            }
+            EditMessage::InputWidth(w) => {
+                if let Ok(width) = w.parse::<f32>() {
+                    if let Some(selected) = self.selected_curve {
+                        self.curves[selected].width = width;
+                    } else {
+                        self.pending.width = width;
+                    }
+                }
+            }
+            EditMessage::RemoveCurve => {
+                if let Some(selected) = self.selected_curve {
+                    self.curves.remove(selected);
+                    self.selected_curve = None;
+                } else {
+                    self.pending.points.clear();
+                }
+            }
+            EditMessage::SlideColorR(r) => {
+                if let Some(selected) = self.selected_curve {
+                    self.curves[selected].color.r = r;
+                } else {
+                    self.pending.color.r = r;
+                }
+            }
+            EditMessage::SlideColorG(g) => {
+                if let Some(selected) = self.selected_curve {
+                    self.curves[selected].color.g = g;
+                } else {
+                    self.pending.color.g = g;
+                }
+            }
+            EditMessage::SlideColorB(b) => {
+                if let Some(selected) = self.selected_curve {
+                    self.curves[selected].color.b = b;
+                } else {
+                    self.pending.color.b = b;
+                }
+            }
         }
         self.request_redraw();
     }
 
     pub fn view(&mut self) -> Element<EditMessage> {
-        let main_content = Column::new()
-            .padding(20)
-            .spacing(20)
+        let (Curve { color, width, .. }, edit_title, remove_button) =
+            if let Some(selected) = self.selected_curve {
+                (&self.curves[selected], "selected curve", "Delete")
+            } else {
+                (&self.pending, "to add a curve", "Discard")
+            };
+        let (r, g, b) = (
+            (color.r * 255.0).to_string(),
+            (color.g * 255.0).to_string(),
+            (color.b * 255.0).to_string(),
+        );
+        let width = width.to_string();
+
+        let editable = Column::new()
+            .width(Length::Units(200))
             .align_items(Alignment::Center)
+            .padding(20)
+            .spacing(15)
+            .push(Text::new(edit_title).height(Length::Units(40)).size(25))
+            .push(Text::new("Color:  "))
             .push(
-                IcedCanvas::new(self)
-                    .width(Length::Fill)
-                    .height(Length::Fill),
+                Row::new()
+                    .push(
+                        Slider::new(
+                            &mut self.slider_color_r,
+                            0.0..=1.0,
+                            color.r,
+                            EditMessage::SlideColorR,
+                        )
+                        .step(0.01),
+                    )
+                    .push(
+                        text_input::TextInput::new(
+                            &mut self.input_color_r,
+                            "red",
+                            r.as_str(),
+                            EditMessage::InputColorR,
+                        )
+                        .width(Length::Units(50)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .push(
+                        Slider::new(
+                            &mut self.slider_color_g,
+                            0.0..=1.0,
+                            color.g,
+                            EditMessage::SlideColorG,
+                        )
+                        .step(0.01),
+                    )
+                    .push(
+                        text_input::TextInput::new(
+                            &mut self.input_color_g,
+                            "green",
+                            g.as_str(),
+                            EditMessage::InputColorG,
+                        )
+                        .width(Length::Units(50)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .push(
+                        Slider::new(
+                            &mut self.slider_color_b,
+                            0.0..=1.0,
+                            color.b,
+                            EditMessage::SlideColorB,
+                        )
+                        .step(0.01),
+                    )
+                    .push(
+                        text_input::TextInput::new(
+                            &mut self.input_color_b,
+                            "blue",
+                            b.as_str(),
+                            EditMessage::InputColorB,
+                        )
+                        .width(Length::Units(50)),
+                    ),
+            )
+            .push(
+                Row::new().push(Text::new("Width:  ")).push(
+                    text_input::TextInput::new(
+                        &mut self.input_width,
+                        width.as_str(),
+                        width.as_str(),
+                        EditMessage::InputWidth,
+                    )
+                    .width(Length::Units(50)),
+                ),
+            )
+            .push(
+                Button::new(&mut self.remove_curve, Text::new(remove_button))
+                    .on_press(EditMessage::RemoveCurve)
+                    .style(style::Button::RemoveCurve),
             );
 
-        Column::new()
+        let canvas = IcedCanvas::new(DrawingBoard {
+            pending: &mut self.pending,
+            curves: &self.curves,
+            cache: &self.cache,
+            selected_curve: &self.selected_curve,
+        })
+        .width(Length::Fill)
+        .height(Length::Fill);
+
+        Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
-            .push(main_content)
+            .push(canvas)
+            .push(editable)
             .into()
     }
 
@@ -312,7 +506,10 @@ impl Edit {
 
     pub fn save(&self) {
         if let Some(pathbuf) = save_file() {
-            let document = self.curves.iter().fold(Document::new(), |acc, x| acc.add(x.save()));
+            let document = self
+                .curves
+                .iter()
+                .fold(Document::new(), |acc, x| acc.add(x.save()));
 
             svg::save(pathbuf, &document).unwrap();
         }
@@ -331,8 +528,15 @@ impl Edit {
     }
 }
 
+struct DrawingBoard<'a> {
+    pending: &'a mut Curve,
+    curves: &'a Vec<Curve>,
+    cache: &'a canvas::Cache,
+    selected_curve: &'a Option<usize>,
+}
+
 //FIXME:当Edit中新增了很多这里不需要的数据的时候，就应该换回原来的结构
-impl canvas::Program<EditMessage> for Edit {
+impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
     fn update(
         &mut self,
         event: Event,
@@ -370,7 +574,7 @@ impl canvas::Program<EditMessage> for Edit {
                                 event::Status::Captured,
                                 Some(EditMessage::AddCurve(Curve {
                                     points: self.pending.points.drain(..).collect(),
-                                    ..self.pending
+                                    ..*self.pending
                                 })),
                             );
                         }
@@ -388,7 +592,7 @@ impl canvas::Program<EditMessage> for Edit {
         let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
             if let Some(selected) = self.selected_curve {
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
-                    if index == selected {
+                    if index == *selected {
                         curve.draw(frame, true);
                     } else {
                         curve.draw(frame, false);
@@ -418,4 +622,8 @@ impl canvas::Program<EditMessage> for Edit {
             mouse::Interaction::default()
         }
     }
+}
+
+fn is_valid_rgb(value: f32) -> bool {
+    0.0 <= value && value < 256.0
 }

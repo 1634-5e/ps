@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use iced::{button, Alignment, Button, Column, Container, Element, Image, Length, Row, Svg, Text};
+use iced::{
+    button, Alignment, Button, Column, Container, Element, Image, Length, Row, Space, Svg, Text,
+};
 
 use super::style;
 
@@ -20,6 +22,7 @@ pub struct Viewer {
     pub previous: button::State,
     pub next: button::State,
     pub close_not_found: button::State,
+    // pub preview_navigators: [button::State;8],
 }
 
 impl Viewer {
@@ -88,7 +91,9 @@ impl Viewer {
                 .width(Length::Fill)
                 .spacing(7)
                 .align_items(Alignment::Center)
-                .push(Text::new(format!("{} / {}", index + 1, self.images.len())));
+                .push(Text::new(format!("{} / {}", index + 1, self.images.len())))
+                .push(Row::new().height(Length::Units(50)))
+                .push(Space::with_height(Length::Units(10)));
 
                 row.push(image_column).push(
                     Button::new(&mut self.next, Text::new(">"))
