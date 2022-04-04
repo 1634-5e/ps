@@ -7,6 +7,7 @@ pub enum Button {
     #[default]
     Entry,
     RemoveCurve,
+    PreviewNavigator,
 }
 
 //可选：background, shadow_offset, border_radius, border_width, border_color, text_color
@@ -36,6 +37,11 @@ impl button::StyleSheet for Button {
                 border_radius: 5.0,
                 ..button::Style::default()
             },
+            Button::PreviewNavigator => button::Style {
+                border_radius: 5.0,
+                border_width: 5.0,
+                ..button::Style::default()
+            },
         }
     }
 
@@ -59,6 +65,11 @@ impl button::StyleSheet for Button {
                 // background: Some(Background::Color(Color::from_rgb(0.58, 0.71, 0.81))),
                 border_width: 5.0,
                 border_radius: 5.0,
+                ..button::Style::default()
+            },
+            Button::PreviewNavigator => button::Style {
+                border_radius: 5.0,
+                border_width: 5.0,
                 ..button::Style::default()
             },
         }

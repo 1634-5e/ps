@@ -12,17 +12,19 @@ pub enum ViewerMessage {
     NavigateBack,
     NavigateNext,
     CloseNotFound,
+    JumpToImage(usize),
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct Viewer {
     pub images: Vec<PathBuf>,
     pub on_view: Option<usize>,
+    pub on_preview: Option<(usize, usize)>,
 
     pub previous: button::State,
     pub next: button::State,
     pub close_not_found: button::State,
-    // pub preview_navigators: [button::State;8],
+    pub preview_navigators: [button::State; 8],
 }
 
 impl Viewer {
@@ -55,7 +57,13 @@ impl Viewer {
                     *index %= self.images.len();
                 }
             }
+            ViewerMessage::JumpToImage(index) => {
+                if let Some(on_view) = &mut self.on_view {
+                    *on_view = index;
+                }
+            }
         }
+        self.update_preview();
     }
 
     pub fn view(&mut self) -> Element<ViewerMessage> {
@@ -95,11 +103,66 @@ impl Viewer {
                 .push(Row::new().height(Length::Units(50)))
                 .push(Space::with_height(Length::Units(10)));
 
-                row.push(image_column).push(
-                    Button::new(&mut self.next, Text::new(">"))
-                        .style(style::Button::Navigator)
-                        .on_press(ViewerMessage::NavigateNext),
-                )
+                row.push(image_column)
+                    .push(
+                        Button::new(&mut self.next, Text::new(">"))
+                            .style(style::Button::Navigator)
+                            .on_press(ViewerMessage::NavigateNext),
+                    )
+                    .push(if let Some((start, end)) = self.on_preview {
+                        //用迭代器
+                        self.images[start..end + 1]
+                            .iter()
+                            .enumerate()
+                            .zip(self.preview_navigators.iter_mut())
+                            .fold(
+                                Column::new()
+                                    .spacing(10)
+                                    .padding(20)
+                                    .align_items(Alignment::Center),
+                                |acc, ((i, image), state)| match image.as_path().extension() {
+                                    Some(e) if e.eq("png") || e.eq("jpg") => acc.push(
+                                        Button::new(
+                                            state,
+                                            Image::new(image)
+                                                .width(Length::Units(70))
+                                                .height(Length::Units(70)),
+                                        )
+                                        .on_press(ViewerMessage::JumpToImage(i + start)),
+                                    ),
+                                    Some(e) if e.eq("svg") => acc.push(
+                                        Button::new(
+                                            state,
+                                            Svg::from_path(image)
+                                                .width(Length::Units(70))
+                                                .height(Length::Units(70)),
+                                        )
+                                        .on_press(ViewerMessage::JumpToImage(i + start)),
+                                    ),
+
+                                    _ => acc.push(Text::new("Internal Error.")),
+                                },
+                            )
+
+                        //循环
+                        // for image in self.images[start..end + 1].iter().enumerate() {
+                        //     match image.as_path().extension() {
+                        //         Some(e) if e.eq("png") || e.eq("jpg") => {
+                        //             preview_navigators = preview_navigators.push(Image::new(image))
+                        //         }
+                        //         Some(e) if e.eq("svg") => {
+                        //             preview_navigators = preview_navigators.push(Svg::from_path(image))
+                        //         }
+
+                        //         _ => preview_navigators = preview_navigators.push(Text::new("Internal Error.")),
+                        //     }
+                        // }
+                    } else {
+                        Column::new()
+                            .spacing(10)
+                            .padding(20)
+                            .align_items(Alignment::Center)
+                    })
             }
             None => Row::new().push(Text::new("Pick an image.")),
         })
@@ -127,4 +190,33 @@ impl Viewer {
         self.images.clear();
         self.on_view = None;
     }
+
+    fn update_preview(&mut self) {
+        if let Some(center) = self.on_view {
+            self.on_preview = Some(get_centered_slice(
+                &self.images,
+                self.preview_navigators.len(),
+                center,
+            ));
+        }
+    }
+}
+
+fn get_centered_slice<T>(array: &[T], slice_len: usize, center: usize) -> (usize, usize) {
+    assert!(slice_len > 1);
+
+    let len = array.len();
+
+    let start = if center > slice_len / 2 - 1 {
+        center - 3
+    } else {
+        0
+    };
+    let end = if start + slice_len - 1 < len {
+        start + 7
+    } else {
+        len - 1
+    };
+
+    (start, end)
 }
