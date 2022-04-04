@@ -245,7 +245,7 @@ impl Curve {
         .set("fill", "none")
         .set("stroke", "black")
         .set("stroke-width", self.width)
-        .set("d", data.close())
+        .set("d", data)
     }
 }
 
