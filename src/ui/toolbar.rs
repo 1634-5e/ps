@@ -33,6 +33,8 @@ pub struct Toolbar {
     save: button::State,
     rectangle: button::State,
     triangle: button::State,
+    quadratic_bezier: button::State,
+    cubic_bezier: button::State,
 }
 
 impl Toolbar {
@@ -41,7 +43,7 @@ impl Toolbar {
             .height(Length::Units(100))
             .push(button(
                 &mut self.back,
-                icons::duplicate(),
+                icons::check(),
                 "back",
                 Some(ToolbarMessage::Back),
             ))
@@ -53,21 +55,33 @@ impl Toolbar {
             ))
             .push(button(
                 &mut self.save,
-                icons::duplicate(),
+                icons::save(),
                 "save",
                 Some(ToolbarMessage::Save),
             ))
             .push(button(
                 &mut self.rectangle,
-                icons::duplicate(),
+                icons::up_arrow(),
                 "rectangle",
                 Some(ToolbarMessage::SelectShape(Shape::Rectangle)),
             ))
             .push(button(
                 &mut self.triangle,
-                icons::duplicate(),
+                icons::down_arrow(),
                 "triangle",
                 Some(ToolbarMessage::SelectShape(Shape::Triangle)),
+            ))
+            .push(button(
+                &mut self.quadratic_bezier,
+                icons::down_arrow(),
+                "2 Bezier",
+                Some(ToolbarMessage::SelectShape(Shape::QuadraticBezier)),
+            ))
+            .push(button(
+                &mut self.cubic_bezier,
+                icons::down_arrow(),
+                "3 Bezier",
+                Some(ToolbarMessage::SelectShape(Shape::CubicBezier)),
             ))
             .into()
     }

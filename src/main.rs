@@ -1,6 +1,7 @@
 // #![allow(unused)]
 #![feature(derive_default_enum)]
 #![feature(associated_type_bounds)]
+#![feature(if_let_guard)]
 
 //暂时放下用户设置部分
 
@@ -213,7 +214,6 @@ impl Application for Ps {
                 Column::new()
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .padding(15)
                     .push(toolbar)
                     .push(main_content)
                     .into()

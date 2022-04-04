@@ -1,3 +1,5 @@
+use std::vec;
+
 use iced::{
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
@@ -15,9 +17,11 @@ use crate::io::dialogs::save as save_file;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Shape {
-    #[default]
     Rectangle,
     Triangle,
+    #[default]
+    QuadraticBezier,
+    CubicBezier,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +57,8 @@ impl Curve {
         match self.shape {
             Shape::Rectangle => 2,
             Shape::Triangle => 3,
+            Shape::QuadraticBezier => 3,
+            Shape::CubicBezier => 4,
         }
     }
 
@@ -61,24 +67,62 @@ impl Curve {
 
         if let Some(cursor_position) = cursor.position_in(&bounds) {
             let path = Path::new(|p| match self.shape {
-                Shape::Rectangle => {
-                    if self.points.len() == 1 {
-                        let top_left = self.points[0];
-                        let right_bottom = cursor_position;
-                        p.rectangle(top_left, get_size(top_left, right_bottom));
+                Shape::Rectangle => match &self.points[..] {
+                    [left_top] => {
+                        p.rectangle(*left_top, get_size(*left_top, cursor_position));
                     }
-                }
-                Shape::Triangle => {
-                    let len = self.points.len();
-                    if len == 1 {
-                        p.move_to(self.points[0]);
+                    _ => {}
+                },
+                Shape::Triangle => match &self.points[..] {
+                    [a] => {
+                        p.move_to(*a);
                         p.line_to(cursor_position);
-                    } else if len == 2 {
-                        p.move_to(self.points[0]);
-                        p.line_to(self.points[1]);
-                        p.line_to(cursor_position);
-                        p.line_to(self.points[0]);
                     }
+                    [a, b] => {
+                        p.move_to(*a);
+                        p.line_to(*b);
+                        p.line_to(cursor_position);
+                        p.line_to(*a);
+                    }
+                    _ => {}
+                },
+                Shape::QuadraticBezier => match &self.points[..] {
+                    [from] => {
+                        p.move_to(*from);
+                        p.line_to(cursor_position);
+                    }
+                    [from, to] => {
+                        p.move_to(*from);
+                        p.quadratic_curve_to(cursor_position, *to);
+                    }
+                    _ => {}
+                },
+                Shape::CubicBezier => {
+                    match &self.points[..] {
+                        [from] => {
+                            p.move_to(*from);
+                            p.line_to(cursor_position);
+                        }
+                        [from, to] => {
+                            p.move_to(*from);
+                            p.quadratic_curve_to(cursor_position, *to);
+                        }
+                        [from, to, control_a] => {
+                            p.move_to(*from);
+                            p.bezier_curve_to(*control_a, cursor_position, *to);
+                        }
+                        _ => {}
+                    }
+                    // let len = self.points.len();
+                    // if len == 1 {
+                    //     p.move_to(self.points[0]);
+                    //     p.line_to(cursor_position);
+                    // } else if len == 2 {
+                    //     p.move_to(self.points[0]);
+                    //     p.quadratic_curve_to(cursor_position, self.points[1]);
+                    // } else if len == 3 {
+                    //     p.move_to(self.p)
+                    // }
                 }
             });
             frame.stroke(
@@ -111,6 +155,18 @@ impl Curve {
                     builder.line_to(a);
                 }
             }
+            Shape::QuadraticBezier => {
+                if let [from, to, control] = self.points[..] {
+                    builder.move_to(from);
+                    builder.quadratic_curve_to(control, to);
+                }
+            }
+            Shape::CubicBezier => {
+                if let [from, to, control_a, control_b] = self.points[..] {
+                    builder.move_to(from);
+                    builder.bezier_curve_to(control_a, control_b, to);
+                }
+            }
         });
         frame.stroke(
             &path,
@@ -140,29 +196,56 @@ impl Curve {
     }
 
     #[inline(always)]
-    pub fn save(&self, data: Data) -> Data {
-        match self.shape {
-            Shape::Rectangle => {
-                assert!(self.points.len() == 2);
-                let Point { x: x1, y: y1 } = self.points[0];
-                let Point { x: x2, y: y2 } = self.points[1];
-                data.move_to((x1, y1))
-                    .line_to((x2, y1))
-                    .line_to((x2, y2))
-                    .line_to((x1, y2))
-                    .line_to((x1, y1))
+    pub fn save(&self) -> SvgPath {
+        let data = Data::new();
+
+        let data = match self.shape {
+            Shape::Rectangle if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = self.points[..] => {
+                 {
+                    data
+                        .move_to((x1, y1))
+                        .line_to((x2, y1))
+                        .line_to((x2, y2))
+                        .line_to((x1, y2))
+                        .line_to((x1, y1))
+                }
             }
-            Shape::Triangle => {
-                assert!(self.points.len() == 3);
-                let Point { x: ax, y: ay } = self.points[0];
-                let Point { x: bx, y: by } = self.points[1];
-                let Point { x: cx, y: cy } = self.points[2];
-                data.move_to((ax, ay))
-                    .line_to((bx, by))
-                    .line_to((cx, cy))
-                    .line_to((ax, ay))
+            Shape::Triangle if let [Point { x: ax, y: ay }, Point { x: bx, y: by }, Point { x: cx, y: cy }] =
+            self.points[..] => {
+                
+                {
+                    data
+                        .move_to((ax, ay))
+                        .line_to((bx, by))
+                        .line_to((cx, cy))
+                        .line_to((ax, ay))
+                }
             }
-        }
+            Shape::QuadraticBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cx, y: cy }] =
+            self.points[..] => {
+                
+                {
+                    data
+                        .move_to((fx, fy))
+                        .quadratic_curve_to(vec![cx, cy, tx, ty])
+                }
+            }
+            Shape::CubicBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
+            self.points[..] => {
+                
+                {
+                    data
+                        .move_to((fx, fy))
+                        .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
+                }
+            }
+            _ => data
+        };
+        SvgPath::new()
+        .set("fill", "none")
+        .set("stroke", "black")
+        .set("stroke-width", self.width)
+        .set("d", data.close())
     }
 }
 
@@ -229,15 +312,7 @@ impl Edit {
 
     pub fn save(&self) {
         if let Some(pathbuf) = save_file() {
-            let data = self.curves.iter().fold(Data::new(), |acc, x| x.save(acc));
-
-            let path = SvgPath::new()
-                .set("fill", "none")
-                .set("stroke", "black")
-                .set("stroke-width", 3)
-                .set("d", data.close());
-
-            let document = Document::new().add(path);
+            let document = self.curves.iter().fold(Document::new(), |acc, x| acc.add(x.save()));
 
             svg::save(pathbuf, &document).unwrap();
         }

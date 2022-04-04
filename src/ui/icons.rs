@@ -2,7 +2,7 @@ use iced::{Font, Length, Text};
 
 const ICONS: Font = Font::External {
     name: "Icons",
-    bytes: include_bytes!("fonts/firacode_m.ttf"),
+    bytes: include_bytes!("fonts/icons.ttf"),
 };
 
 fn icon(unicode: char) -> Text {
@@ -58,4 +58,8 @@ pub fn up_arrow() -> Text {
 
 pub fn down_arrow() -> Text {
     icon('\u{e813}')
+}
+
+pub fn test() -> Text {
+    icon('\u{2716}')
 }
