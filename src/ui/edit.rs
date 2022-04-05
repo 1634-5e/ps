@@ -535,7 +535,6 @@ struct DrawingBoard<'a> {
     selected_curve: &'a Option<usize>,
 }
 
-//FIXME:当Edit中新增了很多这里不需要的数据的时候，就应该换回原来的结构
 impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
     fn update(
         &mut self,

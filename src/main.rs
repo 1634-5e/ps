@@ -49,6 +49,7 @@ mod ui {
 
 use std::env;
 
+use iced::keyboard::KeyCode;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
 use iced_native::window::Event as WindowEvent;
@@ -187,6 +188,23 @@ impl Application for Ps {
                         }
                         _ => {}
                     },
+                    Event::Keyboard(ke) => match ke {
+                        iced::keyboard::Event::KeyPressed {
+                            key_code,
+                            modifiers,
+                        } => {
+                            if state.is_editing
+                                && key_code == KeyCode::Delete
+                                && modifiers.is_empty()
+                            {
+                                return Command::perform(do_nothing(), |_| {
+                                    EditMessage::RemoveCurve
+                                })
+                                .map(Message::Edit);
+                            }
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 },
                 Message::Viewer(vm) => state.viewer.update(vm),
@@ -227,3 +245,6 @@ impl Application for Ps {
         iced_native::subscription::events().map(Message::ExternEvent)
     }
 }
+
+//用于响应外部事件，并传递到本地事件
+async fn do_nothing() {}
