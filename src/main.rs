@@ -193,14 +193,56 @@ impl Application for Ps {
                             key_code,
                             modifiers,
                         } => {
-                            if state.is_editing
-                                && key_code == KeyCode::Delete
-                                && modifiers.is_empty()
-                            {
-                                return Command::perform(do_nothing(), |_| {
-                                    EditMessage::RemoveCurve
-                                })
-                                .map(Message::Edit);
+                            if state.is_editing {
+                                match key_code {
+                                    KeyCode::Delete => {
+                                        if modifiers.is_empty() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                EditMessage::RemoveCurve
+                                            })
+                                            .map(Message::Edit);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            } else {
+                                match key_code {
+                                    KeyCode::Delete => {
+                                        if modifiers.is_empty() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                ToolbarMessage::Close
+                                            })
+                                            .map(Message::Toolbar);
+                                        }
+                                    }
+                                    KeyCode::Up | KeyCode::Left => {
+                                        if modifiers.is_empty() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                ViewerMessage::Navigate(-1)
+                                            })
+                                            .map(Message::Viewer);
+                                        } else if modifiers.control() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                ViewerMessage::Navigate(-10)
+                                            })
+                                            .map(Message::Viewer);
+                                        }
+                                    }
+                                    KeyCode::Down | KeyCode::Right => {
+                                        if modifiers.is_empty() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                ViewerMessage::Navigate(1)
+                                            })
+                                            .map(Message::Viewer);
+                                        } else if modifiers.control() {
+                                            return Command::perform(do_nothing(), |_| {
+                                                ViewerMessage::Navigate(10)
+                                            })
+                                            .map(Message::Viewer);
+                                        }
+                                    }
+                                    _ => {}
+                                }
                             }
                         }
                         _ => {}

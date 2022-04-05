@@ -4,8 +4,8 @@ use iced::{
     button,
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point,
-    Rectangle, Row, Slider, Text,
+    mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point, Rectangle,
+    Row, Slider, Text,
 };
 
 use svg::node::element::path::Data;
@@ -304,7 +304,13 @@ impl Edit {
     pub fn update(&mut self, message: EditMessage) {
         match message {
             EditMessage::AddCurve(c) => self.curves.push(c),
-            EditMessage::SelectCurve(c) => self.selected_curve = c,
+            EditMessage::SelectCurve(c) => {
+                if self.selected_curve == c {
+                    self.selected_curve = None;
+                } else {
+                    self.selected_curve = c;
+                }
+            }
             EditMessage::InputColorR(r) => {
                 if let Ok(r) = r.parse::<f32>() {
                     if is_valid_rgb(r) {

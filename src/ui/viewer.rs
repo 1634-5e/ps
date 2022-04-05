@@ -9,8 +9,7 @@ use super::style;
 #[derive(Debug, Clone)]
 pub enum ViewerMessage {
     ImageLoaded((Vec<PathBuf>, Option<usize>)),
-    NavigateBack,
-    NavigateNext,
+    Navigate(i32),
     CloseNotFound,
     JumpToImage(usize),
 }
@@ -42,19 +41,9 @@ impl Viewer {
                 self.images.append(&mut images);
             }
             ViewerMessage::CloseNotFound => self.close(),
-            ViewerMessage::NavigateBack => {
+            ViewerMessage::Navigate(i) => {
                 if let Some(index) = &mut self.on_view {
-                    if *index > 0 {
-                        *index -= 1;
-                    } else {
-                        *index = self.images.len() - 1;
-                    }
-                }
-            }
-            ViewerMessage::NavigateNext => {
-                if let Some(index) = &mut self.on_view {
-                    *index += 1;
-                    *index %= self.images.len();
+                    *index = ((*index as i32 + i) % self.images.len() as i32) as usize;
                 }
             }
             ViewerMessage::JumpToImage(index) => {
@@ -74,7 +63,7 @@ impl Viewer {
                 row = row.push(
                     Button::new(&mut self.previous, Text::new("<"))
                         .style(style::Button::Navigator)
-                        .on_press(ViewerMessage::NavigateBack),
+                        .on_press(ViewerMessage::Navigate(-1)),
                 );
 
                 let current_image = self.images[index].as_path();
@@ -107,7 +96,7 @@ impl Viewer {
                     .push(
                         Button::new(&mut self.next, Text::new(">"))
                             .style(style::Button::Navigator)
-                            .on_press(ViewerMessage::NavigateNext),
+                            .on_press(ViewerMessage::Navigate(1)),
                     )
                     .push(if let Some((start, end)) = self.on_preview {
                         //用迭代器
