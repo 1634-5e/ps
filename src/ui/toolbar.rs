@@ -40,6 +40,8 @@ pub struct Toolbar {
 impl Toolbar {
     pub fn editing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
+            .padding(20)
+            .spacing(7)
             .height(Length::Units(100))
             .push(button(
                 &mut self.back,
@@ -88,6 +90,8 @@ impl Toolbar {
 
     pub fn viewing(&mut self) -> Element<ToolbarMessage> {
         Row::new()
+            .padding(20)
+            .spacing(7)
             .height(Length::Units(100))
             .push(button(
                 &mut self.open,

@@ -69,7 +69,8 @@ impl button::StyleSheet for Button {
             },
             Button::PreviewNavigator => button::Style {
                 border_radius: 5.0,
-                border_width: 5.0,
+                border_width: 15.0,
+                shadow_offset: self.active().shadow_offset + Vector::new(0.0, 1.0),
                 ..button::Style::default()
             },
         }

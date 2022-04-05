@@ -2,6 +2,8 @@
 #![feature(derive_default_enum)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
+#![windows_subsystem = "windows"]
+#![warn(clippy::all)]
 
 //暂时放下用户设置部分
 

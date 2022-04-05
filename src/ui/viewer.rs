@@ -111,7 +111,7 @@ impl Viewer {
                     )
                     .push(if let Some((start, end)) = self.on_preview {
                         //用迭代器
-                        self.images[start..end + 1]
+                        self.images[start..end]
                             .iter()
                             .enumerate()
                             .zip(self.preview_navigators.iter_mut())
@@ -120,27 +120,35 @@ impl Viewer {
                                     .spacing(10)
                                     .padding(20)
                                     .align_items(Alignment::Center),
-                                |acc, ((i, image), state)| match image.as_path().extension() {
-                                    Some(e) if e.eq("png") || e.eq("jpg") => acc.push(
-                                        Button::new(
+                                |acc, ((i, image), state)| {
+                                    let mut preview_button = match image.as_path().extension() {
+                                        Some(e) if e.eq("png") || e.eq("jpg") => Button::new(
                                             state,
                                             Image::new(image)
                                                 .width(Length::Units(70))
                                                 .height(Length::Units(70)),
-                                        )
-                                        .on_press(ViewerMessage::JumpToImage(i + start)),
-                                    ),
-                                    Some(e) if e.eq("svg") => acc.push(
-                                        Button::new(
+                                        ),
+                                        Some(e) if e.eq("svg") => Button::new(
                                             state,
                                             Svg::from_path(image)
                                                 .width(Length::Units(70))
                                                 .height(Length::Units(70)),
-                                        )
-                                        .on_press(ViewerMessage::JumpToImage(i + start)),
-                                    ),
+                                        ),
+                                        _ => Button::new(
+                                            state,
+                                            Image::new("assets/blank.png")
+                                                .width(Length::Units(70))
+                                                .height(Length::Units(70)),
+                                        ),
+                                    }
+                                    .style(style::Button::PreviewNavigator);
 
-                                    _ => acc.push(Text::new("Internal Error.")),
+                                    if i + start != index {
+                                        preview_button = preview_button
+                                            .on_press(ViewerMessage::JumpToImage(i + start));
+                                    }
+
+                                    acc.push(preview_button)
                                 },
                             )
 
@@ -203,20 +211,20 @@ impl Viewer {
 }
 
 fn get_centered_slice<T>(array: &[T], slice_len: usize, center: usize) -> (usize, usize) {
-    assert!(slice_len > 1);
-
     let len = array.len();
 
-    let start = if center > slice_len / 2 - 1 {
-        center - 3
-    } else {
-        0
-    };
-    let end = if start + slice_len - 1 < len {
-        start + 7
-    } else {
-        len - 1
-    };
+    let mut start = center;
+    let mut end = center;
 
+    while end - start < slice_len && (start > 0 || end < len) {
+        if start > 0 {
+            start -= 1;
+        }
+        if end < len {
+            end += 1;
+        }
+    }
+
+    //左闭右开
     (start, end)
 }

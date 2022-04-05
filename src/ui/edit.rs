@@ -4,7 +4,7 @@ use iced::{
     button,
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    mouse, slider, text_input, Alignment, Button, Color, Column, Container, Element, Length, Point,
+    mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point,
     Rectangle, Row, Slider, Text,
 };
 
