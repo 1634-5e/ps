@@ -52,6 +52,7 @@ use std::env;
 use iced::keyboard::KeyCode;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
+use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
 
@@ -63,7 +64,6 @@ pub(crate) struct Flags {
     // pub(crate) user_settings: Rc<RefCell<UserSettings>>,
 }
 
-//TODO: 这里应该使用Rc<RefCell>
 use io::dialogs::open;
 use io::last_place;
 use ui::*;
@@ -99,7 +99,7 @@ impl Application for Ps {
     fn new(flags: Flags) -> (Ps, Command<Message>) {
         let command = match &flags.env_args[..] {
             [_, to_open @ ..] if !to_open.is_empty() => {
-                Command::perform(open(to_open.to_vec(), true), ViewerMessage::ImageLoaded)
+                Command::perform(open(to_open.to_vec(), false), ViewerMessage::ImageLoaded)
                     .map(Message::Viewer)
             }
             _ => Command::perform(last_place::load(), Message::StateRestored),
@@ -197,10 +197,7 @@ impl Application for Ps {
                                 match key_code {
                                     KeyCode::Delete => {
                                         if modifiers.is_empty() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                EditMessage::RemoveCurve
-                                            })
-                                            .map(Message::Edit);
+                                            state.edit.remove_curve();
                                         }
                                     }
                                     _ => {}
@@ -209,36 +206,21 @@ impl Application for Ps {
                                 match key_code {
                                     KeyCode::Delete => {
                                         if modifiers.is_empty() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                ToolbarMessage::Close
-                                            })
-                                            .map(Message::Toolbar);
+                                            state.viewer.close();
                                         }
                                     }
                                     KeyCode::Up | KeyCode::Left => {
                                         if modifiers.is_empty() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                ViewerMessage::Navigate(-1)
-                                            })
-                                            .map(Message::Viewer);
+                                            state.viewer.navigate(-1);
                                         } else if modifiers.control() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                ViewerMessage::Navigate(-10)
-                                            })
-                                            .map(Message::Viewer);
+                                            state.viewer.navigate(-10);
                                         }
                                     }
                                     KeyCode::Down | KeyCode::Right => {
                                         if modifiers.is_empty() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                ViewerMessage::Navigate(1)
-                                            })
-                                            .map(Message::Viewer);
+                                            state.viewer.navigate(1);
                                         } else if modifiers.control() {
-                                            return Command::perform(do_nothing(), |_| {
-                                                ViewerMessage::Navigate(10)
-                                            })
-                                            .map(Message::Viewer);
+                                            state.viewer.navigate(10);
                                         }
                                     }
                                     _ => {}
@@ -247,6 +229,19 @@ impl Application for Ps {
                         }
                         _ => {}
                     },
+                    Event::Mouse(me) => {
+                        match me {
+                            MouseEvent::WheelScrolled { delta } => {
+                                println!("{:?}", delta);
+                                println!("event occured");
+                            }
+                            MouseEvent::ButtonPressed(_) => {
+                                println!("button pressed/");
+                            }
+                            _ => {}
+                        }
+                        println!("mouse event");
+                    }
                     _ => {}
                 },
                 Message::Viewer(vm) => state.viewer.update(vm),
@@ -289,4 +284,4 @@ impl Application for Ps {
 }
 
 //用于响应外部事件，并传递到本地事件
-async fn do_nothing() {}
+// async fn do_nothing() {}

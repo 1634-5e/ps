@@ -353,14 +353,7 @@ impl Edit {
                     }
                 }
             }
-            EditMessage::RemoveCurve => {
-                if let Some(selected) = self.selected_curve {
-                    self.curves.remove(selected);
-                    self.selected_curve = None;
-                } else {
-                    self.pending.points.clear();
-                }
-            }
+            EditMessage::RemoveCurve => self.remove_curve(),
             EditMessage::SlideColorR(r) => {
                 if let Some(selected) = self.selected_curve {
                     self.curves[selected].color.r = r;
@@ -504,9 +497,21 @@ impl Edit {
             .into()
     }
 
+    #[inline]
     pub fn reset(&mut self) {
         self.pending.points.clear();
         self.curves.clear();
+        self.request_redraw();
+    }
+
+    #[inline]
+    pub fn remove_curve(&mut self) {
+        if let Some(selected) = self.selected_curve {
+            self.curves.remove(selected);
+            self.selected_curve = None;
+        } else {
+            self.pending.points.clear();
+        }
         self.request_redraw();
     }
 
@@ -521,10 +526,12 @@ impl Edit {
         }
     }
 
+    #[inline]
     pub fn request_redraw(&mut self) {
         self.cache.clear()
     }
 
+    #[inline]
     pub fn change_shape(&mut self, s: Shape) {
         if let Some(index) = self.selected_curve {
             self.curves[index].shape = s;
@@ -597,11 +604,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
             if let Some(selected) = self.selected_curve {
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
-                    if index == *selected {
-                        curve.draw(frame, true);
-                    } else {
-                        curve.draw(frame, false);
-                    }
+                    curve.draw(frame, index == *selected);
                 });
             } else {
                 self.curves
@@ -631,4 +634,111 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
 
 fn is_valid_rgb(value: f32) -> bool {
     0.0 <= value && value < 256.0
+}
+
+mod shape {
+    use iced::{
+        canvas::{Cursor, Frame, Geometry, Path, Stroke},
+        Color, Point, Rectangle as IcedRectangle,
+    };
+    use svg::node::element::{path::Data, Path as SvgPath};
+
+    use crate::ui::utils::get_size;
+
+    use super::Curve;
+
+    pub trait Shape: Send {
+        const LABOR: u8;
+
+        fn labor(&self) -> u8;
+        fn preview(&self, curve: &Curve, bounds: IcedRectangle, cursor: Cursor) -> Geometry;
+        fn draw(&self, curve: &Curve, frame: &mut Frame, selected: bool);
+        fn save(&self, curve: &Curve) -> SvgPath;
+    }
+
+    struct Rectangle;
+
+    impl Shape for Rectangle {
+        //TODO:形状的draw应该只涉及到形状部分，而颜色，线宽等其他信息应该不包括在里面（测试完可行性之后再改）
+        const LABOR: u8 = 2;
+
+        fn labor(&self) -> u8 {
+            Self::LABOR
+        }
+
+        fn preview(&self, curve: &Curve, bounds: IcedRectangle, cursor: Cursor) -> Geometry {
+            let mut frame = Frame::new(bounds.size());
+
+            if let Some(cursor_position) = cursor.position_in(&bounds) {
+                let path = Path::new(|p| match &curve.points[..] {
+                    [left_top] => {
+                        p.rectangle(*left_top, get_size(*left_top, cursor_position));
+                    }
+                    _ => {}
+                });
+                frame.stroke(
+                    &path,
+                    Stroke {
+                        width: curve.width,
+                        color: curve.color,
+                        ..Stroke::default()
+                    },
+                )
+            }
+
+            frame.into_geometry()
+        }
+        fn draw(&self, curve: &Curve, frame: &mut Frame, selected: bool) {
+            let path = Path::new(|builder| {
+                if let [top_left, right_bottom] = curve.points[..] {
+                    builder.rectangle(top_left, get_size(top_left, right_bottom));
+                }
+            });
+            frame.stroke(
+                &path,
+                Stroke {
+                    width: curve.width,
+                    color: curve.color,
+                    ..Stroke::default()
+                },
+            );
+
+            if selected {
+                let selection_highlight = Path::new(|b| {
+                    for point in curve.points.iter() {
+                        b.circle(*point, 8.0);
+                    }
+                });
+
+                frame.stroke(
+                    &selection_highlight,
+                    Stroke {
+                        width: 1.0,
+                        color: Color::from_rgb(255.0, 255.0, 0.0),
+                        ..Stroke::default()
+                    },
+                );
+            }
+        }
+        fn save(&self, curve: &Curve) -> SvgPath {
+            let mut data = Data::new();
+
+            data = if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = curve.points[..] {
+                {
+                    data.move_to((x1, y1))
+                        .line_to((x2, y1))
+                        .line_to((x2, y2))
+                        .line_to((x1, y2))
+                        .line_to((x1, y1))
+                }
+            } else {
+                data
+            };
+            SvgPath::new()
+                .set("fill", "none")
+                .set("stroke", "black")
+                .set("stroke-width", curve.width)
+                .set("d", data)
+        }
+    }
 }

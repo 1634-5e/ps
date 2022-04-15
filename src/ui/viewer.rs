@@ -16,6 +16,7 @@ pub enum ViewerMessage {
 
 #[derive(Debug, Default, Clone)]
 pub struct Viewer {
+    //TODO:改成HashMap::<String, HashSet>的结构以缩小内存占用
     pub images: Vec<PathBuf>,
     pub on_view: Option<usize>,
     pub on_preview: Option<(usize, usize)>,
@@ -41,11 +42,7 @@ impl Viewer {
                 self.images.append(&mut images);
             }
             ViewerMessage::CloseNotFound => self.close(),
-            ViewerMessage::Navigate(i) => {
-                if let Some(index) = &mut self.on_view {
-                    *index = ((*index as i32 + i) % self.images.len() as i32) as usize;
-                }
-            }
+            ViewerMessage::Navigate(i) => self.navigate(i),
             ViewerMessage::JumpToImage(index) => {
                 if let Some(on_view) = &mut self.on_view {
                     *on_view = index;
@@ -88,7 +85,11 @@ impl Viewer {
                 .width(Length::Fill)
                 .spacing(7)
                 .align_items(Alignment::Center)
-                .push(Text::new(format!("{} / {}", index + 1, self.images.len())))
+                .push(
+                    Row::new()
+                        .push(Text::new(format!("{} / {}", index + 1, self.images.len())))
+                        .height(Length::Units(35)),
+                )
                 .push(Row::new().height(Length::Units(50)))
                 .push(Space::with_height(Length::Units(10)));
 
@@ -170,6 +171,24 @@ impl Viewer {
         .into()
     }
 
+    #[inline]
+    pub fn navigate(&mut self, i: i32) {
+        if let Some(index) = &mut self.on_view {
+            //如果是一个一个切换，则允许从第一个跳到最后一个
+            let target = *index as i32 + i;
+            if 0 <= target && target < self.images.len() as i32 {
+                *index = target as usize;
+            } else {
+                if i == -1 || i > 1 {
+                    *index = self.images.len() - 1;
+                } else {
+                    *index = 0;
+                }
+            }
+        }
+    }
+
+    #[inline]
     pub fn close(&mut self) {
         if let Some(index) = &mut self.on_view {
             self.images.remove(*index);
@@ -183,11 +202,13 @@ impl Viewer {
         }
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.images.clear();
         self.on_view = None;
     }
 
+    #[inline]
     fn update_preview(&mut self) {
         if let Some(center) = self.on_view {
             self.on_preview = Some(get_centered_slice(
