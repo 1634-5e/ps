@@ -1,5 +1,3 @@
-use std::vec;
-
 use iced::{
     button,
     canvas::event::{self, Event},
@@ -87,11 +85,32 @@ impl Curve {
 
     #[inline(always)]
     pub fn save(&self) -> SvgPath {
+        //小写大写貌似不区分
         SvgPath::new()
             .set("fill", "none")
-            .set("stroke", "black")
+            .set("stroke", Self::get_format_color(self.color))
             .set("stroke-width", self.width)
             .set("d", self.shape.save(&self.points))
+    }
+
+    pub fn get_format_color(color: Color) -> String {
+        let mut r = format!("{:x}", (color.r * 255.0) as i32);
+        let mut g = format!("{:x}", (color.g * 255.0) as i32);
+        let mut b = format!("{:x}", (color.b * 255.0) as i32);
+
+        if r.len() != 1 || g.len() != 1 || b.len() != 1 {
+            if r.len() == 1 {
+                r = ["0".to_string(), r].concat();
+            }
+            if g.len() == 1 {
+                g = ["0".to_string(), g].concat();
+            }
+            if b.len() == 1 {
+                b = ["0".to_string(), b].concat();
+            }
+        }
+
+        ["#".to_string(), r, g, b].concat()
     }
 }
 
@@ -150,7 +169,10 @@ pub struct Edit {
 impl Edit {
     pub fn update(&mut self, message: EditMessage) {
         match message {
-            EditMessage::AddCurve(c) => self.curves.push(c),
+            EditMessage::AddCurve(c) => {
+                self.curves.push(c);
+                self.selected_curve = Some(self.curves.len() - 1);
+            }
             EditMessage::SelectCurve(c) => {
                 if self.selected_curve == c {
                     self.selected_curve = None;
@@ -382,9 +404,20 @@ impl Edit {
     pub fn change_shape(&mut self, s: Box<dyn Shape>) {
         if let Some(index) = self.selected_curve {
             self.curves[index].shape = s;
+            if self.curves[index].points.len() < self.curves[index].shape.labor().into() {
+                self.pending = self.curves.remove(index);
+                self.selected_curve = None;
+            }
         } else {
             self.pending.shape = s;
+            if self.pending.points.len() == self.pending.shape.labor().into() {
+                self.curves.push(Curve {
+                    points: self.pending.points.drain(..).collect(),
+                    ..self.pending.clone()
+                });
+            }
         }
+        self.request_redraw();
     }
 }
 
@@ -483,7 +516,7 @@ fn is_valid_rgb(value: f32) -> bool {
     0.0 <= value && value < 256.0
 }
 
-pub(crate) mod shape {
+pub mod shape {
     use std::fmt::Debug;
 
     use iced::{canvas::Path, Point};
@@ -491,7 +524,7 @@ pub(crate) mod shape {
 
     use crate::ui::utils::get_size;
     use dyn_clone::{clone_box, DynClone};
-    
+
     pub trait Shape: Send + Debug + DynClone {
         fn labor(&mut self) -> u8;
         fn preview(&self, points: &[Point], cursor_position: Point) -> Path;
@@ -504,15 +537,6 @@ pub(crate) mod shape {
             clone_box(&**self)
         }
     }
-
-    // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    // pub enum Shape {
-    //     Rectangle,
-    //     Triangle,
-    //     #[default]
-    //     QuadraticBezier,
-    //     CubicBezier,
-    // }
 
     #[derive(Debug, Default, Clone)]
     pub struct Rectangle;
@@ -646,50 +670,51 @@ pub(crate) mod shape {
         }
     }
 
-    #[derive(Debug, Default, Clone)]
-    pub struct CubicBezier;
+    //在选择基于点控制的逻辑下弃用，完全只用二次的就可以画出任意多次的贝塞尔曲线
+    // #[derive(Debug, Default, Clone)]
+    // pub struct CubicBezier;
 
-    impl Shape for CubicBezier {
-        fn labor(&mut self) -> u8 {
-            4
-        }
-        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
-            Path::new(|p| match points[..] {
-                [from] => {
-                    p.move_to(from);
-                    p.line_to(cursor_position);
-                }
-                [from, to] => {
-                    p.move_to(from);
-                    p.quadratic_curve_to(cursor_position, to);
-                }
-                [from, to, control_a] => {
-                    p.move_to(from);
-                    p.bezier_curve_to(control_a, cursor_position, to);
-                }
-                _ => {}
-            })
-        }
+    // impl Shape for CubicBezier {
+    //     fn labor(&mut self) -> u8 {
+    //         4
+    //     }
+    //     fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+    //         Path::new(|p| match points[..] {
+    //             [from] => {
+    //                 p.move_to(from);
+    //                 p.line_to(cursor_position);
+    //             }
+    //             [from, to] => {
+    //                 p.move_to(from);
+    //                 p.quadratic_curve_to(cursor_position, to);
+    //             }
+    //             [from, to, control_a] => {
+    //                 p.move_to(from);
+    //                 p.bezier_curve_to(control_a, cursor_position, to);
+    //             }
+    //             _ => {}
+    //         })
+    //     }
 
-        fn draw(&self, points: &[Point]) -> Path {
-            Path::new(|builder| {
-                if let [from, to, control_a, control_b] = points[..] {
-                    builder.move_to(from);
-                    builder.bezier_curve_to(control_a, control_b, to);
-                }
-            })
-        }
-        fn save(&self, points: &[Point]) -> Data {
-            let data = Data::new();
+    //     fn draw(&self, points: &[Point]) -> Path {
+    //         Path::new(|builder| {
+    //             if let [from, to, control_a, control_b] = points[..] {
+    //                 builder.move_to(from);
+    //                 builder.bezier_curve_to(control_a, control_b, to);
+    //             }
+    //         })
+    //     }
+    //     fn save(&self, points: &[Point]) -> Data {
+    //         let data = Data::new();
 
-            if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
-                points[..]
-            {
-                data.move_to((fx, fy))
-                    .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
-            } else {
-                data
-            }
-        }
-    }
+    //         if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
+    //             points[..]
+    //         {
+    //             data.move_to((fx, fy))
+    //                 .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
+    //         } else {
+    //             data
+    //         }
+    //     }
+    // }
 }

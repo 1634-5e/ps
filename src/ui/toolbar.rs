@@ -34,7 +34,6 @@ pub struct Toolbar {
     rectangle: button::State,
     triangle: button::State,
     quadratic_bezier: button::State,
-    cubic_bezier: button::State,
 }
 
 impl Toolbar {
@@ -78,12 +77,6 @@ impl Toolbar {
                 icons::quadratic_bezier(),
                 "2 Bezier",
                 Some(ToolbarMessage::SelectShape(Box::new(QuadraticBezier))),
-            ))
-            .push(button(
-                &mut self.cubic_bezier,
-                icons::cubic_bezier(),
-                "3 Bezier",
-                Some(ToolbarMessage::SelectShape(Box::new(CubicBezier))),
             ))
             .into()
     }
