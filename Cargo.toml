@@ -25,3 +25,4 @@ native-dialog = "0.6.2"
 svg = "0.10.0"
 chrono = "0.4.19"
 serde = { version = "1.0.136", features = ["derive"] }
+dyn-clone = "1.0.5"

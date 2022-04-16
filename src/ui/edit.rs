@@ -4,32 +4,25 @@ use iced::{
     button,
     canvas::event::{self, Event},
     canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point, Rectangle,
-    Row, Slider, Text,
+    mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point,
+    Rectangle as IcedRectangle, Row, Slider, Text,
 };
 
-use svg::node::element::path::Data;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
 // use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 
-use super::{style, utils::get_size};
+use self::shape::{Rectangle, Shape};
+
 use crate::io::dialogs::save as save_file;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Shape {
-    Rectangle,
-    Triangle,
-    #[default]
-    QuadraticBezier,
-    CubicBezier,
-}
+use super::style;
 
 #[derive(Debug, Clone)]
 pub struct Curve {
     points: Vec<Point>,
-    shape: Shape,
+    shape: Box<dyn Shape>,
     color: Color,
     width: f32,
 }
@@ -38,7 +31,7 @@ impl Default for Curve {
     fn default() -> Self {
         Curve {
             points: vec![],
-            shape: Shape::Rectangle,
+            shape: Box::new(Rectangle),
             color: Color::BLACK,
             width: 2.0,
         }
@@ -46,89 +39,12 @@ impl Default for Curve {
 }
 
 impl Curve {
-    pub fn new(kind: Shape, color: Color, width: f32) -> Self {
-        Curve {
-            points: vec![],
-            shape: kind,
-            color,
-            width,
-        }
-    }
-
-    pub fn labor(&self) -> u16 {
-        match self.shape {
-            Shape::Rectangle => 2,
-            Shape::Triangle => 3,
-            Shape::QuadraticBezier => 3,
-            Shape::CubicBezier => 4,
-        }
-    }
-
-    pub fn preview(&self, bounds: Rectangle, cursor: Cursor) -> Geometry {
+    pub fn preview(&self, bounds: IcedRectangle, cursor: Cursor) -> Geometry {
         let mut frame = Frame::new(bounds.size());
 
         if let Some(cursor_position) = cursor.position_in(&bounds) {
-            let path = Path::new(|p| match self.shape {
-                Shape::Rectangle => match &self.points[..] {
-                    [left_top] => {
-                        p.rectangle(*left_top, get_size(*left_top, cursor_position));
-                    }
-                    _ => {}
-                },
-                Shape::Triangle => match &self.points[..] {
-                    [a] => {
-                        p.move_to(*a);
-                        p.line_to(cursor_position);
-                    }
-                    [a, b] => {
-                        p.move_to(*a);
-                        p.line_to(*b);
-                        p.line_to(cursor_position);
-                        p.line_to(*a);
-                    }
-                    _ => {}
-                },
-                Shape::QuadraticBezier => match &self.points[..] {
-                    [from] => {
-                        p.move_to(*from);
-                        p.line_to(cursor_position);
-                    }
-                    [from, to] => {
-                        p.move_to(*from);
-                        p.quadratic_curve_to(cursor_position, *to);
-                    }
-                    _ => {}
-                },
-                Shape::CubicBezier => {
-                    match &self.points[..] {
-                        [from] => {
-                            p.move_to(*from);
-                            p.line_to(cursor_position);
-                        }
-                        [from, to] => {
-                            p.move_to(*from);
-                            p.quadratic_curve_to(cursor_position, *to);
-                        }
-                        [from, to, control_a] => {
-                            p.move_to(*from);
-                            p.bezier_curve_to(*control_a, cursor_position, *to);
-                        }
-                        _ => {}
-                    }
-                    // let len = self.points.len();
-                    // if len == 1 {
-                    //     p.move_to(self.points[0]);
-                    //     p.line_to(cursor_position);
-                    // } else if len == 2 {
-                    //     p.move_to(self.points[0]);
-                    //     p.quadratic_curve_to(cursor_position, self.points[1]);
-                    // } else if len == 3 {
-                    //     p.move_to(self.p)
-                    // }
-                }
-            });
             frame.stroke(
-                &path,
+                &self.shape.preview(&self.points, cursor_position),
                 Stroke {
                     width: self.width,
                     color: self.color,
@@ -142,36 +58,8 @@ impl Curve {
 
     #[inline(always)]
     pub fn draw(&self, frame: &mut Frame, selected: bool) {
-        assert!(self.points.len() == self.labor().into());
-        let path = Path::new(|builder| match self.shape {
-            Shape::Rectangle => {
-                if let [top_left, right_bottom] = self.points[..] {
-                    builder.rectangle(top_left, get_size(top_left, right_bottom));
-                }
-            }
-            Shape::Triangle => {
-                if let [a, b, c] = self.points[..] {
-                    builder.move_to(a);
-                    builder.line_to(b);
-                    builder.line_to(c);
-                    builder.line_to(a);
-                }
-            }
-            Shape::QuadraticBezier => {
-                if let [from, to, control] = self.points[..] {
-                    builder.move_to(from);
-                    builder.quadratic_curve_to(control, to);
-                }
-            }
-            Shape::CubicBezier => {
-                if let [from, to, control_a, control_b] = self.points[..] {
-                    builder.move_to(from);
-                    builder.bezier_curve_to(control_a, control_b, to);
-                }
-            }
-        });
         frame.stroke(
-            &path,
+            &self.shape.draw(&self.points),
             Stroke {
                 width: self.width,
                 color: self.color,
@@ -199,52 +87,11 @@ impl Curve {
 
     #[inline(always)]
     pub fn save(&self) -> SvgPath {
-        let data = Data::new();
-
-        let data = match self.shape {
-            Shape::Rectangle if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = self.points[..] => {
-                 {
-                    data
-                        .move_to((x1, y1))
-                        .line_to((x2, y1))
-                        .line_to((x2, y2))
-                        .line_to((x1, y2))
-                        .line_to((x1, y1))
-                }
-            }
-            Shape::Triangle if let [Point { x: ax, y: ay }, Point { x: bx, y: by }, Point { x: cx, y: cy }] =
-            self.points[..] => {
-                {
-                    data
-                        .move_to((ax, ay))
-                        .line_to((bx, by))
-                        .line_to((cx, cy))
-                        .line_to((ax, ay))
-                }
-            }
-            Shape::QuadraticBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cx, y: cy }] =
-            self.points[..] => {
-                {
-                    data
-                        .move_to((fx, fy))
-                        .quadratic_curve_to(vec![cx, cy, tx, ty])
-                }
-            }
-            Shape::CubicBezier if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
-            self.points[..] => {
-                {
-                    data
-                        .move_to((fx, fy))
-                        .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
-                }
-            }
-            _ => data
-        };
         SvgPath::new()
             .set("fill", "none")
             .set("stroke", "black")
             .set("stroke-width", self.width)
-            .set("d", data)
+            .set("d", self.shape.save(&self.points))
     }
 }
 
@@ -532,7 +379,7 @@ impl Edit {
     }
 
     #[inline]
-    pub fn change_shape(&mut self, s: Shape) {
+    pub fn change_shape(&mut self, s: Box<dyn Shape>) {
         if let Some(index) = self.selected_curve {
             self.curves[index].shape = s;
         } else {
@@ -552,7 +399,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
     fn update(
         &mut self,
         event: Event,
-        bounds: Rectangle,
+        bounds: IcedRectangle,
         cursor: Cursor,
     ) -> (event::Status, Option<EditMessage>) {
         let cursor_position = if let Some(position) = cursor.position_in(&bounds) {
@@ -579,14 +426,14 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                             }
                         }
 
-                        let labor: usize = self.pending.labor().into();
+                        let labor: usize = self.pending.shape.labor().into();
                         self.pending.points.push(cursor_position);
                         if self.pending.points.len() == labor {
                             return (
                                 event::Status::Captured,
                                 Some(EditMessage::AddCurve(Curve {
                                     points: self.pending.points.drain(..).collect(),
-                                    ..*self.pending
+                                    ..self.pending.clone()
                                 })),
                             );
                         }
@@ -600,7 +447,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         (event::Status::Ignored, None)
     }
 
-    fn draw(&self, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry> {
+    fn draw(&self, bounds: IcedRectangle, cursor: Cursor) -> Vec<Geometry> {
         let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
             if let Some(selected) = self.selected_curve {
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
@@ -623,7 +470,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         vec![content, pending_curve]
     }
 
-    fn mouse_interaction(&self, bounds: Rectangle, cursor: Cursor) -> mouse::Interaction {
+    fn mouse_interaction(&self, bounds: IcedRectangle, cursor: Cursor) -> mouse::Interaction {
         if cursor.is_over(&bounds) {
             mouse::Interaction::Crosshair
         } else {
@@ -636,94 +483,64 @@ fn is_valid_rgb(value: f32) -> bool {
     0.0 <= value && value < 256.0
 }
 
-mod shape {
-    use iced::{
-        canvas::{Cursor, Frame, Geometry, Path, Stroke},
-        Color, Point, Rectangle as IcedRectangle,
-    };
-    use svg::node::element::{path::Data, Path as SvgPath};
+pub(crate) mod shape {
+    use std::fmt::Debug;
+
+    use iced::{canvas::Path, Point};
+    use svg::node::element::path::Data;
 
     use crate::ui::utils::get_size;
-
-    use super::Curve;
-
-    pub trait Shape: Send {
-        const LABOR: u8;
-
-        fn labor(&self) -> u8;
-        fn preview(&self, curve: &Curve, bounds: IcedRectangle, cursor: Cursor) -> Geometry;
-        fn draw(&self, curve: &Curve, frame: &mut Frame, selected: bool);
-        fn save(&self, curve: &Curve) -> SvgPath;
+    use dyn_clone::{clone_box, DynClone};
+    
+    pub trait Shape: Send + Debug + DynClone {
+        fn labor(&mut self) -> u8;
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path;
+        fn draw(&self, points: &[Point]) -> Path;
+        fn save(&self, points: &[Point]) -> Data;
     }
 
-    struct Rectangle;
+    impl Clone for Box<dyn Shape> {
+        fn clone(&self) -> Self {
+            clone_box(&**self)
+        }
+    }
+
+    // #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    // pub enum Shape {
+    //     Rectangle,
+    //     Triangle,
+    //     #[default]
+    //     QuadraticBezier,
+    //     CubicBezier,
+    // }
+
+    #[derive(Debug, Default, Clone)]
+    pub struct Rectangle;
 
     impl Shape for Rectangle {
-        //TODO:形状的draw应该只涉及到形状部分，而颜色，线宽等其他信息应该不包括在里面（测试完可行性之后再改）
-        const LABOR: u8 = 2;
-
-        fn labor(&self) -> u8 {
-            Self::LABOR
+        fn labor(&mut self) -> u8 {
+            2
+        }
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+            Path::new(|p| match points[..] {
+                [left_top] => {
+                    p.rectangle(left_top, get_size(left_top, cursor_position));
+                }
+                _ => {}
+            })
         }
 
-        fn preview(&self, curve: &Curve, bounds: IcedRectangle, cursor: Cursor) -> Geometry {
-            let mut frame = Frame::new(bounds.size());
-
-            if let Some(cursor_position) = cursor.position_in(&bounds) {
-                let path = Path::new(|p| match &curve.points[..] {
-                    [left_top] => {
-                        p.rectangle(*left_top, get_size(*left_top, cursor_position));
-                    }
-                    _ => {}
-                });
-                frame.stroke(
-                    &path,
-                    Stroke {
-                        width: curve.width,
-                        color: curve.color,
-                        ..Stroke::default()
-                    },
-                )
-            }
-
-            frame.into_geometry()
-        }
-        fn draw(&self, curve: &Curve, frame: &mut Frame, selected: bool) {
-            let path = Path::new(|builder| {
-                if let [top_left, right_bottom] = curve.points[..] {
+        fn draw(&self, points: &[Point]) -> Path {
+            Path::new(|builder| {
+                if let [top_left, right_bottom] = points[..] {
                     builder.rectangle(top_left, get_size(top_left, right_bottom));
                 }
-            });
-            frame.stroke(
-                &path,
-                Stroke {
-                    width: curve.width,
-                    color: curve.color,
-                    ..Stroke::default()
-                },
-            );
-
-            if selected {
-                let selection_highlight = Path::new(|b| {
-                    for point in curve.points.iter() {
-                        b.circle(*point, 8.0);
-                    }
-                });
-
-                frame.stroke(
-                    &selection_highlight,
-                    Stroke {
-                        width: 1.0,
-                        color: Color::from_rgb(255.0, 255.0, 0.0),
-                        ..Stroke::default()
-                    },
-                );
-            }
+            })
         }
-        fn save(&self, curve: &Curve) -> SvgPath {
-            let mut data = Data::new();
+        fn save(&self, points: &[Point]) -> Data {
+            let data = Data::new();
 
-            data = if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = curve.points[..] {
+            if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = points[..] {
                 {
                     data.move_to((x1, y1))
                         .line_to((x2, y1))
@@ -733,12 +550,146 @@ mod shape {
                 }
             } else {
                 data
-            };
-            SvgPath::new()
-                .set("fill", "none")
-                .set("stroke", "black")
-                .set("stroke-width", curve.width)
-                .set("d", data)
+            }
+        }
+    }
+
+    #[derive(Debug, Default, Clone)]
+    pub struct Triangle;
+
+    impl Shape for Triangle {
+        fn labor(&mut self) -> u8 {
+            3
+        }
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+            Path::new(|p| match points[..] {
+                [a] => {
+                    p.move_to(a);
+                    p.line_to(cursor_position);
+                }
+                [a, b] => {
+                    p.move_to(a);
+                    p.line_to(b);
+                    p.line_to(cursor_position);
+                    p.line_to(a);
+                }
+                _ => {}
+            })
+        }
+
+        fn draw(&self, points: &[Point]) -> Path {
+            Path::new(|builder| {
+                if let [a, b, c] = points[..] {
+                    builder.move_to(a);
+                    builder.line_to(b);
+                    builder.line_to(c);
+                    builder.line_to(a);
+                }
+            })
+        }
+        fn save(&self, points: &[Point]) -> Data {
+            let data = Data::new();
+
+            if let [Point { x: ax, y: ay }, Point { x: bx, y: by }, Point { x: cx, y: cy }] =
+                points[..]
+            {
+                data.move_to((ax, ay))
+                    .line_to((bx, by))
+                    .line_to((cx, cy))
+                    .line_to((ax, ay))
+            } else {
+                data
+            }
+        }
+    }
+
+    #[derive(Debug, Default, Clone)]
+    pub struct QuadraticBezier;
+
+    impl Shape for QuadraticBezier {
+        fn labor(&mut self) -> u8 {
+            3
+        }
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+            Path::new(|p| match points[..] {
+                [from] => {
+                    p.move_to(from);
+                    p.line_to(cursor_position);
+                }
+                [from, to] => {
+                    p.move_to(from);
+                    p.quadratic_curve_to(cursor_position, to);
+                }
+                _ => {}
+            })
+        }
+
+        fn draw(&self, points: &[Point]) -> Path {
+            Path::new(|builder| {
+                if let [from, to, control] = points[..] {
+                    builder.move_to(from);
+                    builder.quadratic_curve_to(control, to);
+                }
+            })
+        }
+        fn save(&self, points: &[Point]) -> Data {
+            let data = Data::new();
+
+            if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cx, y: cy }] =
+                points[..]
+            {
+                data.move_to((fx, fy))
+                    .quadratic_curve_to(vec![cx, cy, tx, ty])
+            } else {
+                data
+            }
+        }
+    }
+
+    #[derive(Debug, Default, Clone)]
+    pub struct CubicBezier;
+
+    impl Shape for CubicBezier {
+        fn labor(&mut self) -> u8 {
+            4
+        }
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+            Path::new(|p| match points[..] {
+                [from] => {
+                    p.move_to(from);
+                    p.line_to(cursor_position);
+                }
+                [from, to] => {
+                    p.move_to(from);
+                    p.quadratic_curve_to(cursor_position, to);
+                }
+                [from, to, control_a] => {
+                    p.move_to(from);
+                    p.bezier_curve_to(control_a, cursor_position, to);
+                }
+                _ => {}
+            })
+        }
+
+        fn draw(&self, points: &[Point]) -> Path {
+            Path::new(|builder| {
+                if let [from, to, control_a, control_b] = points[..] {
+                    builder.move_to(from);
+                    builder.bezier_curve_to(control_a, control_b, to);
+                }
+            })
+        }
+        fn save(&self, points: &[Point]) -> Data {
+            let data = Data::new();
+
+            if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
+                points[..]
+            {
+                data.move_to((fx, fy))
+                    .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
+            } else {
+                data
+            }
         }
     }
 }

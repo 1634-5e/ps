@@ -1,7 +1,8 @@
 use iced::{button, Alignment, Button, Column, Element, Length, Row, Text};
 
 use super::icons;
-use super::{style, Shape};
+use super::shape::*;
+use super::style;
 
 #[derive(Debug, Clone)]
 pub enum ToolbarMessage {
@@ -15,7 +16,7 @@ pub enum ToolbarMessage {
     Back,
     ClearCanvas,
     Save,
-    SelectShape(Shape),
+    SelectShape(Box<dyn Shape>),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -64,25 +65,25 @@ impl Toolbar {
                 &mut self.rectangle,
                 icons::rectangle(),
                 "rectangle",
-                Some(ToolbarMessage::SelectShape(Shape::Rectangle)),
+                Some(ToolbarMessage::SelectShape(Box::new(Rectangle))),
             ))
             .push(button(
                 &mut self.triangle,
                 icons::triangle(),
                 "triangle",
-                Some(ToolbarMessage::SelectShape(Shape::Triangle)),
+                Some(ToolbarMessage::SelectShape(Box::new(Triangle))),
             ))
             .push(button(
                 &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
                 "2 Bezier",
-                Some(ToolbarMessage::SelectShape(Shape::QuadraticBezier)),
+                Some(ToolbarMessage::SelectShape(Box::new(QuadraticBezier))),
             ))
             .push(button(
                 &mut self.cubic_bezier,
                 icons::cubic_bezier(),
                 "3 Bezier",
-                Some(ToolbarMessage::SelectShape(Shape::CubicBezier)),
+                Some(ToolbarMessage::SelectShape(Box::new(CubicBezier))),
             ))
             .into()
     }
