@@ -1,15 +1,15 @@
 use iced::{
     button,
     canvas::event::{self, Event},
-    canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
+    canvas::{self, Canvas as IcedCanvas, Cursor, Fill, Frame, Geometry, Path, Stroke},
+    keyboard::KeyCode,
     mouse, slider, text_input, Alignment, Button, Color, Column, Element, Length, Point,
     Rectangle as IcedRectangle, Row, Slider, Text,
 };
 
+use serde::{Deserialize, Serialize};
 use svg::node::element::Path as SvgPath;
 use svg::Document;
-
-// use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 
 use self::shape::{Rectangle, Shape};
 
@@ -68,18 +68,11 @@ impl Curve {
         if selected {
             let selection_highlight = Path::new(|b| {
                 for point in self.points.iter() {
-                    b.circle(*point, 8.0);
+                    b.circle(*point, 5.0);
                 }
             });
 
-            frame.stroke(
-                &selection_highlight,
-                Stroke {
-                    width: 1.0,
-                    color: Color::from_rgb(255.0, 255.0, 0.0),
-                    ..Stroke::default()
-                },
-            );
+            frame.fill(&selection_highlight, Fill { ..Fill::default() });
         }
     }
 
@@ -130,9 +123,6 @@ impl Curve {
 
 #[derive(Debug, Clone)]
 pub enum EditMessage {
-    AddCurve(Curve),
-    SelectCurve(Option<usize>),
-
     //editable
     InputColorR(String),
     InputColorG(String),
@@ -149,10 +139,7 @@ pub enum EditMessage {
 
 #[derive(Debug, Default)]
 pub struct Edit {
-    pub pending: Curve,
-    curves: Vec<Curve>,
-    cache: canvas::Cache,
-    selected_curve: Option<usize>,
+    drawing_board: DrawingBoard,
 
     input_color_r: text_input::State,
     input_color_g: text_input::State,
@@ -169,24 +156,13 @@ pub struct Edit {
 impl Edit {
     pub fn update(&mut self, message: EditMessage) {
         match message {
-            EditMessage::AddCurve(c) => {
-                self.curves.push(c);
-                self.selected_curve = Some(self.curves.len() - 1);
-            }
-            EditMessage::SelectCurve(c) => {
-                if self.selected_curve == c {
-                    self.selected_curve = None;
-                } else {
-                    self.selected_curve = c;
-                }
-            }
             EditMessage::InputColorR(r) => {
                 if let Ok(r) = r.parse::<f32>() {
                     if is_valid_rgb(r) {
-                        if let Some(selected) = self.selected_curve {
-                            self.curves[selected].color.r = r / 255.0;
+                        if let Some(selected) = self.drawing_board.selected_curve {
+                            self.drawing_board.curves[selected].color.r = r / 255.0;
                         } else {
-                            self.pending.color.r = r / 255.0;
+                            self.drawing_board.pending.color.r = r / 255.0;
                         }
                     }
                 }
@@ -194,10 +170,10 @@ impl Edit {
             EditMessage::InputColorG(g) => {
                 if let Ok(g) = g.parse::<f32>() {
                     if is_valid_rgb(g) {
-                        if let Some(selected) = self.selected_curve {
-                            self.curves[selected].color.g = g / 255.0;
+                        if let Some(selected) = self.drawing_board.selected_curve {
+                            self.drawing_board.curves[selected].color.g = g / 255.0;
                         } else {
-                            self.pending.color.g = g / 255.0;
+                            self.drawing_board.pending.color.g = g / 255.0;
                         }
                     }
                 }
@@ -205,55 +181,60 @@ impl Edit {
             EditMessage::InputColorB(b) => {
                 if let Ok(b) = b.parse::<f32>() {
                     if is_valid_rgb(b) {
-                        if let Some(selected) = self.selected_curve {
-                            self.curves[selected].color.b = b / 255.0;
+                        if let Some(selected) = self.drawing_board.selected_curve {
+                            self.drawing_board.curves[selected].color.b = b / 255.0;
                         } else {
-                            self.pending.color.b = b / 255.0;
+                            self.drawing_board.pending.color.b = b / 255.0;
                         }
                     }
                 }
             }
             EditMessage::InputWidth(w) => {
                 if let Ok(width) = w.parse::<f32>() {
-                    if let Some(selected) = self.selected_curve {
-                        self.curves[selected].width = width;
+                    if let Some(selected) = self.drawing_board.selected_curve {
+                        self.drawing_board.curves[selected].width = width;
                     } else {
-                        self.pending.width = width;
+                        self.drawing_board.pending.width = width;
                     }
                 }
             }
             EditMessage::RemoveCurve => self.remove_curve(),
             EditMessage::SlideColorR(r) => {
-                if let Some(selected) = self.selected_curve {
-                    self.curves[selected].color.r = r;
+                if let Some(selected) = self.drawing_board.selected_curve {
+                    self.drawing_board.curves[selected].color.r = r;
                 } else {
-                    self.pending.color.r = r;
+                    self.drawing_board.pending.color.r = r;
                 }
             }
             EditMessage::SlideColorG(g) => {
-                if let Some(selected) = self.selected_curve {
-                    self.curves[selected].color.g = g;
+                if let Some(selected) = self.drawing_board.selected_curve {
+                    self.drawing_board.curves[selected].color.g = g;
                 } else {
-                    self.pending.color.g = g;
+                    self.drawing_board.pending.color.g = g;
                 }
             }
             EditMessage::SlideColorB(b) => {
-                if let Some(selected) = self.selected_curve {
-                    self.curves[selected].color.b = b;
+                if let Some(selected) = self.drawing_board.selected_curve {
+                    self.drawing_board.curves[selected].color.b = b;
                 } else {
-                    self.pending.color.b = b;
+                    self.drawing_board.pending.color.b = b;
                 }
             }
         }
-        self.request_redraw();
+        self.drawing_board.redraw();
     }
 
     pub fn view(&mut self) -> Element<EditMessage> {
+        println!("{:?}", self.drawing_board.curves);
         let (Curve { color, width, .. }, edit_title, remove_button) =
-            if let Some(selected) = self.selected_curve {
-                (&self.curves[selected], "selected curve", "Delete")
+            if let Some(selected) = self.drawing_board.selected_curve {
+                (
+                    &self.drawing_board.curves[selected],
+                    "selected curve",
+                    "Delete",
+                )
             } else {
-                (&self.pending, "to add a curve", "Discard")
+                (&self.drawing_board.pending, "to add a curve", "Discard")
             };
         let (r, g, b) = (
             (color.r * 255.0).to_string(),
@@ -349,14 +330,9 @@ impl Edit {
                     .style(style::Button::RemoveCurve),
             );
 
-        let canvas = IcedCanvas::new(DrawingBoard {
-            pending: &mut self.pending,
-            curves: &self.curves,
-            cache: &self.cache,
-            selected_curve: &self.selected_curve,
-        })
-        .width(Length::Fill)
-        .height(Length::Fill);
+        let canvas = IcedCanvas::new(&mut self.drawing_board)
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         Row::new()
             .width(Length::Fill)
@@ -366,27 +342,10 @@ impl Edit {
             .into()
     }
 
-    #[inline]
-    pub fn reset(&mut self) {
-        self.pending.points.clear();
-        self.curves.clear();
-        self.request_redraw();
-    }
-
-    #[inline]
-    pub fn remove_curve(&mut self) {
-        if let Some(selected) = self.selected_curve {
-            self.curves.remove(selected);
-            self.selected_curve = None;
-        } else {
-            self.pending.points.clear();
-        }
-        self.request_redraw();
-    }
-
     pub fn save(&self) {
         if let Some(pathbuf) = save_file() {
             let document = self
+                .drawing_board
                 .curves
                 .iter()
                 .fold(Document::new(), |acc, x| acc.add(x.save()));
@@ -395,40 +354,61 @@ impl Edit {
         }
     }
 
-    #[inline]
-    pub fn request_redraw(&mut self) {
-        self.cache.clear()
+    pub fn reset(&mut self) {
+        self.drawing_board.pending.points.clear();
+        self.drawing_board.curves.clear();
+        self.drawing_board.redraw();
     }
 
-    #[inline]
+    pub fn remove_curve(&mut self) {
+        if let Some(selected) = self.drawing_board.selected_curve {
+            self.drawing_board.curves.remove(selected);
+            self.drawing_board.selected_curve = None;
+        } else {
+            self.drawing_board.pending.points.clear();
+        }
+        self.drawing_board.redraw();
+    }
+
     pub fn change_shape(&mut self, s: Box<dyn Shape>) {
-        if let Some(index) = self.selected_curve {
-            self.curves[index].shape = s;
-            if self.curves[index].points.len() < self.curves[index].shape.labor().into() {
-                self.pending = self.curves.remove(index);
-                self.selected_curve = None;
+        if let Some(index) = self.drawing_board.selected_curve {
+            self.drawing_board.curves[index].shape = s;
+            if self.drawing_board.curves[index].points.len()
+                < self.drawing_board.curves[index].shape.labor().into()
+            {
+                self.drawing_board.pending = self.drawing_board.curves.remove(index);
+                self.drawing_board.selected_curve = None;
             }
         } else {
-            self.pending.shape = s;
-            if self.pending.points.len() == self.pending.shape.labor().into() {
-                self.curves.push(Curve {
-                    points: self.pending.points.drain(..).collect(),
-                    ..self.pending.clone()
+            self.drawing_board.pending.shape = s;
+            if self.drawing_board.pending.points.len()
+                == self.drawing_board.pending.shape.labor().into()
+            {
+                self.drawing_board.curves.push(Curve {
+                    points: self.drawing_board.pending.points.drain(..).collect(),
+                    ..self.drawing_board.pending.clone()
                 });
             }
         }
-        self.request_redraw();
+        self.drawing_board.redraw();
     }
 }
 
-struct DrawingBoard<'a> {
-    pending: &'a mut Curve,
-    curves: &'a Vec<Curve>,
-    cache: &'a canvas::Cache,
-    selected_curve: &'a Option<usize>,
+#[derive(Debug, Default)]
+struct DrawingBoard {
+    pending: Curve,
+    curves: Vec<Curve>,
+    cache: canvas::Cache,
+    selected_curve: Option<usize>,
+    curve_to_select: Option<usize>,
+
+    pressed_point: Option<Point>,
+    nearest_point: Option<(usize, usize)>, //（curves下标，points下标
+
+    ctrl_pressed: bool,
 }
 
-impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
+impl<'a> canvas::Program<EditMessage> for &'a mut DrawingBoard {
     fn update(
         &mut self,
         event: Event,
@@ -438,59 +418,142 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         let cursor_position = if let Some(position) = cursor.position_in(&bounds) {
             position
         } else {
+            self.pressed_point = None;
+            self.nearest_point = None;
             return (event::Status::Ignored, None);
         };
 
-        match event {
-            Event::Mouse(mouse_event) => {
-                match mouse_event {
-                    mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                        //如果pending是空的，则判定是否落在已有curve的points上
-                        if self.pending.points.is_empty() {
-                            for (index, curve) in self.curves.iter().enumerate() {
-                                for point in curve.points.iter() {
-                                    if cursor_position.distance(*point) < 5.0 {
-                                        return (
-                                            event::Status::Captured,
-                                            Some(EditMessage::SelectCurve(Some(index))),
-                                        );
+        if self.pending.points.is_empty() {
+            match event {
+                Event::Mouse(mouse_event) => match mouse_event {
+                    mouse::Event::CursorMoved { position: _ } => {
+                        if let Some((curves_index, points_index)) = self.nearest_point {
+                            let nearest_point = &mut self.curves[curves_index].points[points_index];
+                            if nearest_point.distance(cursor_position)
+                                > DrawingBoard::DETERMINANT_DISTANCE
+                            {
+                                if self.ctrl_pressed {
+                                    let x_shift = cursor_position.x - nearest_point.x;
+                                    let y_shift = cursor_position.y - nearest_point.y;
+
+                                    for point in self.curves[curves_index].points.iter_mut() {
+                                        point.x += x_shift;
+                                        point.y += y_shift;
                                     }
+                                } else {
+                                    *nearest_point = cursor_position;
                                 }
                             }
                         }
 
-                        let labor: usize = self.pending.shape.labor().into();
-                        self.pending.points.push(cursor_position);
-                        if self.pending.points.len() == labor {
-                            return (
-                                event::Status::Captured,
-                                Some(EditMessage::AddCurve(Curve {
-                                    points: self.pending.points.drain(..).collect(),
-                                    ..self.pending.clone()
-                                })),
-                            );
+                        //如果离得远了就取消预览
+                        if let Some(to_select) = self.curve_to_select {
+                            let mut to_cancel = true;
+                            for point in self.curves[to_select].points.iter() {
+                                if point.distance(cursor_position)
+                                    < DrawingBoard::DETERMINANT_DISTANCE
+                                {
+                                    to_cancel = false;
+                                }
+                            }
+                            if to_cancel {
+                                self.curve_to_select = None;
+                            }
+                        }
+                        //如果没有预览中的，则选择一个距离最近的curve
+                        if self.curve_to_select.is_none() {
+                            self.curve_to_select = self.decide_which_curve(cursor_position);
+                        }
+                    }
+                    mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                        self.pressed_point = Some(cursor_position);
+                        let mut nearest_point = None;
+                        let mut last_distance = DrawingBoard::DETERMINANT_DISTANCE;
+                        for (curves_index, curve) in self.curves.iter().enumerate() {
+                            for (points_index, point) in curve.points.iter().enumerate() {
+                                let distance = point.distance(cursor_position);
+                                if distance < DrawingBoard::DETERMINANT_DISTANCE
+                                    && distance < last_distance
+                                {
+                                    last_distance = distance;
+                                    nearest_point = Some((curves_index, points_index));
+                                }
+                            }
+                        }
+                        self.nearest_point = nearest_point;
+                    }
+                    mouse::Event::ButtonReleased(mouse::Button::Left) => {
+                        if let Some(pressed) = self.pressed_point {
+                            if pressed.distance(cursor_position)
+                                < DrawingBoard::DETERMINANT_DISTANCE
+                            {
+                                self.selected_curve = self.decide_which_curve(cursor_position);
+
+                                if self.selected_curve.is_none() {
+                                    self.pending.points.push(cursor_position);
+                                }
+                            }
+                        }
+                        self.pressed_point = None;
+                        self.nearest_point = None;
+                    }
+                    _ => {}
+                },
+                Event::Keyboard(ke) => match ke {
+                    iced::keyboard::Event::KeyPressed {
+                        key_code,
+                        modifiers: _,
+                    } => {
+                        if key_code == KeyCode::LControl || key_code == KeyCode::RControl {
+                            self.ctrl_pressed = true;
+                        }
+                    }
+                    iced::keyboard::Event::KeyReleased {
+                        key_code,
+                        modifiers: _,
+                    } => {
+                        if key_code == KeyCode::LControl || key_code == KeyCode::RControl {
+                            self.ctrl_pressed = false;
                         }
                     }
                     _ => {}
-                }
+                },
             }
-            _ => {}
+        } else {
+            match event {
+                Event::Mouse(mouse_event) => match mouse_event {
+                    mouse::Event::ButtonReleased(mouse::Button::Left) => {
+                        self.pending.points.push(cursor_position);
+                        if self.pending.points.len() == self.pending.shape.labor().into() {
+                            self.curves.push(Curve {
+                                points: self.pending.points.drain(..).collect(),
+                                ..self.pending.clone()
+                            });
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
         }
+        self.redraw();
 
         (event::Status::Ignored, None)
     }
 
     fn draw(&self, bounds: IcedRectangle, cursor: Cursor) -> Vec<Geometry> {
         let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
-            if let Some(selected) = self.selected_curve {
-                self.curves.iter().enumerate().for_each(|(index, curve)| {
-                    curve.draw(frame, index == *selected);
-                });
-            } else {
-                self.curves
-                    .iter()
-                    .for_each(|curve| Curve::draw(curve, frame, false))
+            let mut select = vec![];
+            if let Some(ref selected) = self.selected_curve {
+                select.push(*selected);
             }
+            if let Some(ref to_select) = self.curve_to_select {
+                select.push(*to_select);
+            }
+
+            self.curves.iter().enumerate().for_each(|(index, curve)| {
+                curve.draw(frame, select.contains(&index));
+            });
 
             frame.stroke(
                 &Path::rectangle(Point::ORIGIN, frame.size()),
@@ -505,10 +568,37 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
 
     fn mouse_interaction(&self, bounds: IcedRectangle, cursor: Cursor) -> mouse::Interaction {
         if cursor.is_over(&bounds) {
-            mouse::Interaction::Crosshair
+            if self.selected_curve.is_some() && self.ctrl_pressed {
+                mouse::Interaction::Grabbing
+            } else {
+                mouse::Interaction::Crosshair
+            }
         } else {
             mouse::Interaction::default()
         }
+    }
+}
+
+impl DrawingBoard {
+    const DETERMINANT_DISTANCE: f32 = 10.0;
+
+    fn decide_which_curve(&self, cursor_position: Point) -> Option<usize> {
+        let mut res: Option<usize> = None;
+        let mut last_distance = Self::DETERMINANT_DISTANCE;
+        for (index, curve) in self.curves.iter().enumerate() {
+            for point in curve.points.iter() {
+                let distance = point.distance(cursor_position);
+                if distance < Self::DETERMINANT_DISTANCE && distance < last_distance {
+                    last_distance = distance;
+                    res = Some(index);
+                }
+            }
+        }
+        res
+    }
+
+    pub fn redraw(&mut self) {
+        self.cache.clear()
     }
 }
 
@@ -520,6 +610,7 @@ pub mod shape {
     use std::fmt::Debug;
 
     use iced::{canvas::Path, Point};
+    use serde::{Deserialize, Serialize};
     use svg::node::element::path::Data;
 
     use crate::ui::utils::get_size;
@@ -538,7 +629,7 @@ pub mod shape {
         }
     }
 
-    #[derive(Debug, Default, Clone)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
     pub struct Rectangle;
 
     impl Shape for Rectangle {
@@ -578,7 +669,7 @@ pub mod shape {
         }
     }
 
-    #[derive(Debug, Default, Clone)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
     pub struct Triangle;
 
     impl Shape for Triangle {
@@ -627,7 +718,7 @@ pub mod shape {
         }
     }
 
-    #[derive(Debug, Default, Clone)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
     pub struct QuadraticBezier;
 
     impl Shape for QuadraticBezier {
@@ -669,52 +760,4 @@ pub mod shape {
             }
         }
     }
-
-    //在选择基于点控制的逻辑下弃用，完全只用二次的就可以画出任意多次的贝塞尔曲线
-    // #[derive(Debug, Default, Clone)]
-    // pub struct CubicBezier;
-
-    // impl Shape for CubicBezier {
-    //     fn labor(&mut self) -> u8 {
-    //         4
-    //     }
-    //     fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
-    //         Path::new(|p| match points[..] {
-    //             [from] => {
-    //                 p.move_to(from);
-    //                 p.line_to(cursor_position);
-    //             }
-    //             [from, to] => {
-    //                 p.move_to(from);
-    //                 p.quadratic_curve_to(cursor_position, to);
-    //             }
-    //             [from, to, control_a] => {
-    //                 p.move_to(from);
-    //                 p.bezier_curve_to(control_a, cursor_position, to);
-    //             }
-    //             _ => {}
-    //         })
-    //     }
-
-    //     fn draw(&self, points: &[Point]) -> Path {
-    //         Path::new(|builder| {
-    //             if let [from, to, control_a, control_b] = points[..] {
-    //                 builder.move_to(from);
-    //                 builder.bezier_curve_to(control_a, control_b, to);
-    //             }
-    //         })
-    //     }
-    //     fn save(&self, points: &[Point]) -> Data {
-    //         let data = Data::new();
-
-    //         if let [Point { x: fx, y: fy }, Point { x: tx, y: ty }, Point { x: cax, y: cay }, Point { x: cbx, y: cby }] =
-    //             points[..]
-    //         {
-    //             data.move_to((fx, fy))
-    //                 .cubic_curve_to(vec![cax, cay, cbx, cby, tx, ty])
-    //         } else {
-    //             data
-    //         }
-    //     }
-    // }
 }

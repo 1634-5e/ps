@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 
-use iced::{
-    button, Alignment, Button, Column, Container, Element, Image, Length, Row, Space, Svg, Text,
-};
+use iced::{button, Alignment, Button, Column, Container, Element, Image, Length, Row, Svg, Text};
 
 use super::style;
 
@@ -40,6 +38,7 @@ impl Viewer {
                     self.on_view = on_view;
                 }
                 self.images.append(&mut images);
+                self.update_preview();
             }
             ViewerMessage::CloseNotFound => self.close(),
             ViewerMessage::Navigate(i) => self.navigate(i),
@@ -47,9 +46,9 @@ impl Viewer {
                 if let Some(on_view) = &mut self.on_view {
                     *on_view = index;
                 }
+                self.update_preview();
             }
         }
-        self.update_preview();
     }
 
     pub fn view(&mut self) -> Element<ViewerMessage> {
@@ -66,12 +65,13 @@ impl Viewer {
                 let current_image = self.images[index].as_path();
                 let image_column = if current_image.exists() {
                     match current_image.extension() {
-                        Some(e) if e.eq("png") || e.eq("jpg") => {
-                            Column::new().push(Image::new(current_image))
-                        }
-                        Some(e) if e.eq("svg") => Column::new().push(Svg::from_path(current_image)),
+                        Some(e) if e.eq("png") || e.eq("jpg") => Column::new()
+                            .push(Image::new(current_image).height(Length::FillPortion(11))),
+                        Some(e) if e.eq("svg") => Column::new()
+                            .push(Svg::from_path(current_image).height(Length::FillPortion(11))),
 
-                        _ => Column::new().push(Text::new("Internal Error.")),
+                        _ => Column::new()
+                            .push(Text::new("Internal Error.").height(Length::FillPortion(11))),
                     }
                 } else {
                     Column::new()
@@ -82,16 +82,14 @@ impl Viewer {
                                 .on_press(ViewerMessage::CloseNotFound),
                         )
                 }
-                .width(Length::Fill)
                 .spacing(7)
                 .align_items(Alignment::Center)
-                .push(
-                    Row::new()
-                        .push(Text::new(format!("{} / {}", index + 1, self.images.len())))
-                        .height(Length::Units(35)),
-                )
-                .push(Row::new().height(Length::Units(50)))
-                .push(Space::with_height(Length::Units(10)));
+                .push(Row::new().height(Length::Units(35)).push(Text::new(format!(
+                    "{} / {}",
+                    index + 1,
+                    self.images.len()
+                ))))
+                .width(Length::FillPortion(8));
 
                 row.push(image_column)
                     .push(
@@ -107,29 +105,19 @@ impl Viewer {
                             .zip(self.preview_navigators.iter_mut())
                             .fold(
                                 Column::new()
+                                    .width(Length::FillPortion(1))
                                     .spacing(10)
                                     .padding(20)
                                     .align_items(Alignment::Center),
                                 |acc, ((i, image), state)| {
                                     let mut preview_button = match image.as_path().extension() {
-                                        Some(e) if e.eq("png") || e.eq("jpg") => Button::new(
-                                            state,
-                                            Image::new(image)
-                                                .width(Length::Units(70))
-                                                .height(Length::Units(70)),
-                                        ),
-                                        Some(e) if e.eq("svg") => Button::new(
-                                            state,
-                                            Svg::from_path(image)
-                                                .width(Length::Units(70))
-                                                .height(Length::Units(70)),
-                                        ),
-                                        _ => Button::new(
-                                            state,
-                                            Image::new("assets/blank.png")
-                                                .width(Length::Units(70))
-                                                .height(Length::Units(70)),
-                                        ),
+                                        Some(e) if e.eq("png") || e.eq("jpg") => {
+                                            Button::new(state, Image::new(image))
+                                        }
+                                        Some(e) if e.eq("svg") => {
+                                            Button::new(state, Svg::from_path(image))
+                                        }
+                                        _ => Button::new(state, Image::new("assets/blank.png")),
                                     }
                                     .style(style::Button::PreviewNavigator);
 
@@ -157,6 +145,7 @@ impl Viewer {
                         // }
                     } else {
                         Column::new()
+                            .width(Length::FillPortion(1))
                             .spacing(10)
                             .padding(20)
                             .align_items(Alignment::Center)
@@ -186,6 +175,7 @@ impl Viewer {
                 }
             }
         }
+        self.update_preview();
     }
 
     #[inline]
@@ -200,12 +190,14 @@ impl Viewer {
         if self.images.is_empty() {
             self.on_view = None;
         }
+        self.update_preview();
     }
 
     #[inline]
     pub fn clear(&mut self) {
         self.images.clear();
         self.on_view = None;
+        self.update_preview();
     }
 
     #[inline]

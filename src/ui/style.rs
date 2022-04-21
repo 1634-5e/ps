@@ -34,7 +34,7 @@ impl button::StyleSheet for Button {
             },
             Button::RemoveCurve => button::Style {
                 background: Some(Background::Color(Color::from_rgb(230.0, 92.0, 92.0))),
-                border_radius: 5.0,
+                border_radius: 3.0,
                 ..button::Style::default()
             },
             Button::PreviewNavigator => button::Style {
@@ -62,9 +62,13 @@ impl button::StyleSheet for Button {
                 ..button::Style::default()
             },
             Button::RemoveCurve => button::Style {
-                // background: Some(Background::Color(Color::from_rgb(0.58, 0.71, 0.81))),
+                background: Some(Background::Color(Color::from_rgb(
+                    192.0 / 255.0,
+                    44.0 / 255.0,
+                    56.0 / 255.0,
+                ))),
                 border_width: 5.0,
-                border_radius: 5.0,
+                border_radius: 3.0,
                 ..button::Style::default()
             },
             Button::PreviewNavigator => button::Style {

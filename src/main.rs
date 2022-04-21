@@ -4,6 +4,7 @@
 #![feature(if_let_guard)]
 #![windows_subsystem = "windows"]
 #![warn(clippy::all)]
+#![feature(let_chains)]
 
 //暂时放下用户设置部分
 
@@ -50,6 +51,7 @@ mod ui {
 use std::env;
 
 use iced::keyboard::KeyCode;
+use iced::mouse::ScrollDelta;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
 use iced_native::mouse::Event as MouseEvent;
@@ -164,7 +166,7 @@ impl Application for Ps {
                     ToolbarMessage::ClearCanvas => {
                         state.edit.reset();
                     }
-                    ToolbarMessage::Save => state.edit.save(),
+                    ToolbarMessage::Export => state.edit.save(),
                     ToolbarMessage::SelectShape(s) => {
                         state.edit.change_shape(s);
                     }
@@ -232,11 +234,9 @@ impl Application for Ps {
                     Event::Mouse(me) => {
                         match me {
                             MouseEvent::WheelScrolled { delta } => {
-                                println!("{:?}", delta);
-                                println!("event occured");
-                            }
-                            MouseEvent::ButtonPressed(_) => {
-                                println!("button pressed/");
+                                if let ScrollDelta::Lines { x: _, y } = delta {
+                                    state.viewer.navigate(-y as i32);
+                                }
                             }
                             _ => {}
                         }

@@ -15,7 +15,7 @@ pub enum ToolbarMessage {
     //edit
     Back,
     ClearCanvas,
-    Save,
+    Export,
     SelectShape(Box<dyn Shape>),
 }
 
@@ -57,8 +57,8 @@ impl Toolbar {
             .push(button(
                 &mut self.save,
                 icons::save(),
-                "save",
-                Some(ToolbarMessage::Save),
+                "export",
+                Some(ToolbarMessage::Export),
             ))
             .push(button(
                 &mut self.rectangle,
