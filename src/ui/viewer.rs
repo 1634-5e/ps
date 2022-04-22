@@ -30,9 +30,8 @@ impl Viewer {
         match message {
             ViewerMessage::ImageLoaded((mut images, on_view)) => {
                 let old_length = self.images.len();
-                match (&mut self.on_view, on_view) {
-                    (Some(pre), Some(new)) => *pre = old_length + new,
-                    _ => {}
+                if let (Some(pre), Some(new)) = (&mut self.on_view, on_view) {
+                    *pre = old_length + new;
                 }
                 if self.on_view.is_none() {
                     self.on_view = on_view;
@@ -167,12 +166,10 @@ impl Viewer {
             let target = *index as i32 + i;
             if 0 <= target && target < self.images.len() as i32 {
                 *index = target as usize;
+            } else if i == -1 || i > 1 {
+                *index = self.images.len() - 1;
             } else {
-                if i == -1 || i > 1 {
-                    *index = self.images.len() - 1;
-                } else {
-                    *index = 0;
-                }
+                *index = 0;
             }
         }
         self.update_preview();

@@ -31,6 +31,8 @@ pub struct Toolbar {
     back: button::State,
     clear_canvas: button::State,
     save: button::State,
+
+    line: button::State,
     rectangle: button::State,
     triangle: button::State,
     quadratic_bezier: button::State,
@@ -59,6 +61,12 @@ impl Toolbar {
                 icons::save(),
                 "export",
                 Some(ToolbarMessage::Export),
+            ))
+            .push(button(
+                &mut self.line,
+                icons::rectangle(),
+                "line",
+                Some(ToolbarMessage::SelectShape(Box::new(Line))),
             ))
             .push(button(
                 &mut self.rectangle,

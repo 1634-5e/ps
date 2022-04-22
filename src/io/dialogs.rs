@@ -84,18 +84,13 @@ pub async fn open(mut paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf
     let mut images = vec![];
     for path in paths.into_iter().chain(parents.into_iter()) {
         if path.is_dir() {
-            for entry in path.read_dir().unwrap() {
-                match entry {
-                    Ok(d) => {
-                        let p = d.path();
-                        match p.extension() {
-                            Some(e) if e.eq("png") || e.eq("svg") || e.eq("jpg") => {
-                                images.push(p);
-                            }
-                            _ => {}
-                        }
+            for entry in path.read_dir().unwrap().flatten() {
+                let p = entry.path();
+                match p.extension() {
+                    Some(e) if e.eq("png") || e.eq("svg") || e.eq("jpg") => {
+                        images.push(p);
                     }
-                    Err(_) => {}
+                    _ => {}
                 }
             }
         } else {

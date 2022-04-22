@@ -3,14 +3,13 @@
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![windows_subsystem = "windows"]
-#![warn(clippy::all)]
 #![feature(let_chains)]
 
 //暂时放下用户设置部分
 
 pub fn main() -> iced::Result {
     //处理拖拽事件,第一个值是程序的路径（可能是相对路径，也可能是绝对路径），后面的应该全是被拖拽文件（夹）的路径
-    let env_args: Vec<PathBuf> = env::args().map(|s| PathBuf::from(s)).collect();
+    let env_args: Vec<PathBuf> = env::args().map(PathBuf::from).collect();
     // let user_settings = Rc::new(RefCell::new(UserSettings {
     //     automatic_load: true,
     // })); //恢复用户设置，目前没做
@@ -196,13 +195,8 @@ impl Application for Ps {
                             modifiers,
                         } => {
                             if state.is_editing {
-                                match key_code {
-                                    KeyCode::Delete => {
-                                        if modifiers.is_empty() {
-                                            state.edit.remove_curve();
-                                        }
-                                    }
-                                    _ => {}
+                                if key_code == KeyCode::Delete && modifiers.is_empty() {
+                                    state.edit.remove_curve();
                                 }
                             } else {
                                 match key_code {

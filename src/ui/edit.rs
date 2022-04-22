@@ -371,26 +371,31 @@ impl Edit {
     }
 
     pub fn change_shape(&mut self, s: Box<dyn Shape>) {
-        if let Some(index) = self.drawing_board.selected_curve {
-            self.drawing_board.curves[index].shape = s;
-            if self.drawing_board.curves[index].points.len()
-                < self.drawing_board.curves[index].shape.labor().into()
-            {
-                self.drawing_board.pending = self.drawing_board.curves.remove(index);
-                self.drawing_board.selected_curve = None;
-            }
-        } else {
+        //暂时弃用改变正在画的pending和已经画好的curve的shape
+        // if let Some(index) = self.drawing_board.selected_curve {
+        //     self.drawing_board.curves[index].shape = s;
+        //     if self.drawing_board.curves[index].points.len()
+        //         < self.drawing_board.curves[index].shape.labor().into()
+        //     {
+        //         self.drawing_board.pending = self.drawing_board.curves.remove(index);
+        //         self.drawing_board.selected_curve = None;
+        //     }
+        // } else {
+        //     self.drawing_board.pending.shape = s;
+        //     if self.drawing_board.pending.points.len()
+        //         == self.drawing_board.pending.shape.labor().into()
+        //     {
+        //         self.drawing_board.curves.push(Curve {
+        //             points: self.drawing_board.pending.points.drain(..).collect(),
+        //             ..self.drawing_board.pending.clone()
+        //         });
+        //     }
+        // }
+        // self.drawing_board.redraw();
+
+        if self.drawing_board.pending.points.is_empty() {
             self.drawing_board.pending.shape = s;
-            if self.drawing_board.pending.points.len()
-                == self.drawing_board.pending.shape.labor().into()
-            {
-                self.drawing_board.curves.push(Curve {
-                    points: self.drawing_board.pending.points.drain(..).collect(),
-                    ..self.drawing_board.pending.clone()
-                });
-            }
         }
-        self.drawing_board.redraw();
     }
 }
 
@@ -418,8 +423,6 @@ impl<'a> canvas::Program<EditMessage> for &'a mut DrawingBoard {
         let cursor_position = if let Some(position) = cursor.position_in(&bounds) {
             position
         } else {
-            self.pressed_point = None;
-            self.nearest_point = None;
             return (event::Status::Ignored, None);
         };
 
@@ -521,18 +524,15 @@ impl<'a> canvas::Program<EditMessage> for &'a mut DrawingBoard {
             }
         } else {
             match event {
-                Event::Mouse(mouse_event) => match mouse_event {
-                    mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                        self.pending.points.push(cursor_position);
-                        if self.pending.points.len() == self.pending.shape.labor().into() {
-                            self.curves.push(Curve {
-                                points: self.pending.points.drain(..).collect(),
-                                ..self.pending.clone()
-                            });
-                        }
+                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                    self.pending.points.push(cursor_position);
+                    if self.pending.points.len() == self.pending.shape.labor().into() {
+                        self.curves.push(Curve {
+                            points: self.pending.points.drain(..).collect(),
+                            ..self.pending.clone()
+                        });
                     }
-                    _ => {}
-                },
+                }
                 _ => {}
             }
         }
@@ -603,7 +603,7 @@ impl DrawingBoard {
 }
 
 fn is_valid_rgb(value: f32) -> bool {
-    0.0 <= value && value < 256.0
+    (0.0..256.0).contains(&value)
 }
 
 pub mod shape {
@@ -630,6 +630,43 @@ pub mod shape {
     }
 
     #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+    pub struct Line;
+
+    impl Shape for Line {
+        fn labor(&mut self) -> u8 {
+            2
+        }
+        fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
+            Path::new(|p| {
+                if let [from] = points[..] {
+                    p.move_to(from);
+                    p.line_to(cursor_position);
+                }
+            })
+        }
+
+        fn draw(&self, points: &[Point]) -> Path {
+            Path::new(|builder| {
+                if let [from, to] = points[..] {
+                    builder.move_to(from);
+                    builder.line_to(to);
+                }
+            })
+        }
+        fn save(&self, points: &[Point]) -> Data {
+            let data = Data::new();
+
+            if let [Point { x: x1, y: y1 }, Point { x: x2, y: y2 }] = points[..] {
+                {
+                    data.move_to((x1, y1)).line_to((x2, y2))
+                }
+            } else {
+                data
+            }
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
     pub struct Rectangle;
 
     impl Shape for Rectangle {
@@ -637,11 +674,10 @@ pub mod shape {
             2
         }
         fn preview(&self, points: &[Point], cursor_position: Point) -> Path {
-            Path::new(|p| match points[..] {
-                [left_top] => {
+            Path::new(|p| {
+                if let [left_top] = points[..] {
                     p.rectangle(left_top, get_size(left_top, cursor_position));
                 }
-                _ => {}
             })
         }
 
