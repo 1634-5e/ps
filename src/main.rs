@@ -1,5 +1,4 @@
 // #![allow(unused)]
-#![feature(derive_default_enum)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![windows_subsystem = "windows"]
@@ -52,8 +51,10 @@ mod ui {
 
 use std::env;
 
+use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
+use iced::time::every;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
 use iced_native::mouse::Event as MouseEvent;
@@ -62,6 +63,12 @@ use iced_native::Event;
 
 use io::*;
 
+//用于决定Path,这里的生成的目录是/author/name/，但是只需要一级目录，所以稍微改了一点
+const APP_INFO: AppInfo = AppInfo {
+    name: "never use",
+    author: "Ps",
+};
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Flags {
     pub(crate) env_args: Vec<PathBuf>,
@@ -69,7 +76,7 @@ pub(crate) struct Flags {
 }
 
 use io::dialogs::open;
-use io::last_place;
+use io::last_place::save;
 use ui::*;
 
 #[derive(Debug, Default)]
@@ -78,6 +85,7 @@ pub struct State {
     edit: Edit,
     toolbar: Toolbar,
     is_editing: bool,
+    is_saving: bool,
 }
 
 #[derive(Debug)]
@@ -85,8 +93,10 @@ pub enum Message {
     Viewer(ViewerMessage),
     Edit(EditMessage),
     Toolbar(ToolbarMessage),
-    StateRestored(Option<SavedState>),
+    StateRestored(std::io::Result<Option<SavedState>>),
     ExternEvent(Event),
+    AutoSave,
+    SavedOrFailed(std::io::Result<()>),
 }
 
 #[derive(Debug)]
@@ -106,7 +116,24 @@ impl Application for Ps {
                 Command::perform(open(to_open.to_vec(), false), ViewerMessage::ImageLoaded)
                     .map(Message::Viewer)
             }
-            _ => Command::perform(last_place::load(), Message::StateRestored),
+            _ => {
+                if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
+                    if let Some(parent) = path.parent() {
+                        assert_eq!(
+                            PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
+                            parent.to_path_buf()
+                        );
+                        Command::perform(
+                            last_place::load(parent.to_path_buf()),
+                            Message::StateRestored,
+                        )
+                    } else {
+                        Command::none()
+                    }
+                } else {
+                    Command::none()
+                }
+            }
         };
         (Ps::Loading, command)
     }
@@ -118,28 +145,28 @@ impl Application for Ps {
     fn update(&mut self, message: Message) -> Command<Message> {
         match self {
             Ps::Loading => match message {
-                Message::StateRestored(state) => match state {
-                    Some(s) => {
+                Message::StateRestored(state) => {
+                    if let Ok(Some(state)) = state {
                         let SavedState {
                             is_editing,
                             images,
                             on_view,
-                        } = s;
+                            curves,
+                        } = state;
                         *self = Ps::Loaded(Box::new(State {
                             viewer: Viewer {
                                 images,
                                 on_view,
                                 ..Viewer::default()
                             },
+                            edit: Edit::new(curves),
                             is_editing,
                             ..State::default()
                         }));
+                    } else {
+                        *self = Ps::Loaded(Box::new(State::default()));
                     }
-                    None => {
-                        println!("Program failed to restore last state.");
-                        *self = Ps::Loaded(Box::new(State::default()))
-                    }
-                },
+                }
                 Message::Viewer(ViewerMessage::ImageLoaded(data)) => {
                     *self = Ps::Loaded(Box::new(State::default()));
                     if let Ps::Loaded(state) = self {
@@ -235,6 +262,29 @@ impl Application for Ps {
                 Message::Viewer(vm) => state.viewer.update(vm),
                 Message::Edit(em) => state.edit.update(em),
 
+                Message::AutoSave => {
+                    state.is_saving = true;
+                    if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
+                        if let Some(parent) = path.parent() {
+                            let saved_state = SavedState {
+                                is_editing: state.is_editing,
+                                images: state.viewer.images.clone(),
+                                on_view: state.viewer.on_view,
+                                curves: state.edit.curves.clone(),
+                            };
+                            return Command::perform(
+                                save(saved_state, parent.to_path_buf()),
+                                Message::SavedOrFailed,
+                            );
+                        }
+                    }
+                }
+                Message::SavedOrFailed(result) => {
+                    state.is_saving = false;
+                    if result.is_ok() {
+                        state.edit.dirty = false;
+                    }
+                }
                 _ => {}
             },
         }
@@ -267,7 +317,21 @@ impl Application for Ps {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        iced_native::subscription::events().map(Message::ExternEvent)
+        match self {
+            Ps::Loading => Subscription::none(),
+            Ps::Loaded(state) => {
+                let auto_save = if state.edit.dirty && !state.is_saving {
+                    every(std::time::Duration::from_secs(2)).map(|_| Message::AutoSave)
+                } else {
+                    Subscription::none()
+                };
+
+                Subscription::batch(vec![
+                    iced_native::subscription::events().map(Message::ExternEvent),
+                    auto_save,
+                ])
+            }
+        }
     }
 }
 

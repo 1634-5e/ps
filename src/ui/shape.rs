@@ -13,6 +13,7 @@ use super::utils::{SerdePoint, SerdeSize};
 use super::CurveMessage;
 use crate::ui::utils::get_size;
 
+
 #[derive(Debug, Clone)]
 pub enum ShapeMessage {
     Labor(Point),
@@ -20,7 +21,9 @@ pub enum ShapeMessage {
     Move(f32, f32),
 }
 
-pub trait Shape: Send + Debug + DynClone {
+pub trait Shape:
+    Send + Debug + DynClone + serde_traitobject::Serialize + serde_traitobject::Deserialize
+{
     //utils
     fn is_empty(&self) -> bool;
     fn is_complete(&self) -> bool;

@@ -89,7 +89,7 @@ impl Toolbar {
             .push(button(
                 &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
-                "2 Bezier",
+                "Bezier",
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     QuadraticBezier::default(),
                 )))),

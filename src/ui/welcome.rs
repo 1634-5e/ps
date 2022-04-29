@@ -1,7 +1,12 @@
-use iced::{Element, Text};
+use iced::{Container, Element, Length, Text};
 
 use crate::Message;
 
 pub fn welcome<'a>() -> Element<'a, Message> {
-    Text::new("Program Loading...").into()
+    Container::new(Text::new("Program Loading...").size(30))
+        .center_x()
+        .center_y()
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }

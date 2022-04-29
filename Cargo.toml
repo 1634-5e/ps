@@ -15,7 +15,7 @@ opt-level = "z"
 iced = { git = "https://github.com/iced-rs/iced", features = [
     "image",
     "debug",
-    "tokio_old",
+    "tokio",
     "svg",
     "canvas",
 ] }
@@ -24,6 +24,12 @@ iced_native = { git = "https://github.com/iced-rs/iced" }
 native-dialog = "0.6.2"
 svg = "0.10.0"
 chrono = "0.4.19"
+
 serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.79"
 serde_with = "1.13.0"
+serde_traitobject = "0.2.7"
+
 dyn-clone = "1.0.5"
+
+app_dirs2 = "2.4.0"

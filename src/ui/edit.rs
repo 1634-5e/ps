@@ -1,15 +1,21 @@
 use std::fmt::Display;
 
 use iced::{
-    canvas::event::{self, Event},
     canvas::{
         self, Canvas as IcedCanvas, Cursor, Fill, Frame, Geometry, LineCap, LineJoin, Path, Stroke,
+    },
+    canvas::{
+        event::{self, Event},
+        LineDash,
     },
     keyboard::{self, KeyCode, Modifiers},
     mouse, pick_list, slider, text_input, Alignment, Color, Column, Element, Length, PickList,
     Point, Rectangle as IcedRectangle, Row, Slider, Space, Text,
 };
 
+use serde::{Deserialize, Serialize};
+
+use serde_with::serde_as;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
@@ -18,6 +24,7 @@ use super::{
     utils::{get_format_color, is_valid_rgb},
 };
 use crate::io::dialogs::save as save_file;
+use crate::ui::utils::SerdeColor;
 
 #[derive(Debug, Clone)]
 pub enum CurveMessage {
@@ -39,7 +46,7 @@ pub enum CurveMessage {
     LineJoinSelected(EqLineJoin),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum EqLineCap {
     Butt,
     Round,
@@ -70,7 +77,7 @@ impl Display for EqLineCap {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum EqLineJoin {
     Miter,
     Round,
@@ -101,13 +108,17 @@ impl Display for EqLineJoin {
     }
 }
 
-#[derive(Debug, Clone)]
+#[serde_as]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Curve {
+    #[serde(with = "serde_traitobject")]
     shape: Box<dyn Shape>,
+    #[serde_as(as = "SerdeColor")]
     color: Color,
     width: f32,
     line_cap: EqLineCap,
     line_join: EqLineJoin,
+    line_dash: f32,
 }
 
 impl Default for Curve {
@@ -118,6 +129,7 @@ impl Default for Curve {
             width: 2.0,
             line_cap: EqLineCap::Round,
             line_join: EqLineJoin::Round,
+            line_dash: 0.0,
         }
     }
 }
@@ -185,6 +197,10 @@ impl Curve {
                     width: self.width,
                     line_cap: self.line_cap.into(),
                     line_join: self.line_join.into(),
+                    line_dash: LineDash {
+                        segments: &[self.line_dash],
+                        offset: 0,
+                    },
                 },
             );
         }
@@ -200,6 +216,10 @@ impl Curve {
                     width: self.width,
                     line_cap: self.line_cap.into(),
                     line_join: self.line_join.into(),
+                    line_dash: LineDash {
+                        segments: &[self.line_dash],
+                        offset: 0,
+                    },
                 },
             );
 
@@ -237,7 +257,9 @@ pub enum EditMessage {
 #[derive(Debug, Default)]
 pub struct Edit {
     pending: Curve,
-    curves: Vec<Curve>,
+    pub curves: Vec<Curve>,
+
+    pub dirty: bool,
 
     copied_curve: Option<Curve>, //用于复制粘贴
     selected_curve: Option<usize>,
@@ -264,6 +286,13 @@ pub struct Edit {
 }
 
 impl Edit {
+    pub fn new(curves: Vec<Curve>) -> Self {
+        Edit {
+            curves,
+            ..Edit::default()
+        }
+    }
+
     pub fn update(&mut self, message: EditMessage) {
         match message {
             EditMessage::Curve(cm) => {
@@ -298,6 +327,7 @@ impl Edit {
             }
         }
 
+        self.dirty = true;
         self.redraw();
     }
 
