@@ -3,6 +3,7 @@ use iced::{button, Alignment, Button, Column, Element, Length, Row, Text};
 use super::icons;
 use super::shape::*;
 use super::style;
+use super::EditMessage;
 
 #[derive(Debug, Clone)]
 pub enum ToolbarMessage {
@@ -14,9 +15,8 @@ pub enum ToolbarMessage {
 
     //edit
     Back,
-    ClearCanvas,
     Export,
-    SelectShape(Box<dyn Shape>),
+    Edit(EditMessage),
 }
 
 #[derive(Debug, Default, Clone)]
@@ -54,7 +54,7 @@ impl Toolbar {
                 &mut self.clear_canvas,
                 icons::delete(),
                 "clear",
-                Some(ToolbarMessage::ClearCanvas),
+                Some(ToolbarMessage::Edit(EditMessage::Clear)),
             ))
             .push(button(
                 &mut self.save,
@@ -66,25 +66,33 @@ impl Toolbar {
                 &mut self.line,
                 icons::rectangle(),
                 "line",
-                Some(ToolbarMessage::SelectShape(Box::new(Line))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
+                    Line::default(),
+                )))),
             ))
             .push(button(
                 &mut self.rectangle,
                 icons::rectangle(),
                 "rectangle",
-                Some(ToolbarMessage::SelectShape(Box::new(Rectangle))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
+                    Rectangle::default(),
+                )))),
             ))
             .push(button(
                 &mut self.triangle,
                 icons::triangle(),
                 "triangle",
-                Some(ToolbarMessage::SelectShape(Box::new(Triangle))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
+                    Triangle::default(),
+                )))),
             ))
             .push(button(
                 &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
                 "2 Bezier",
-                Some(ToolbarMessage::SelectShape(Box::new(QuadraticBezier))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
+                    QuadraticBezier::default(),
+                )))),
             ))
             .into()
     }

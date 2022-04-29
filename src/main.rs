@@ -35,13 +35,16 @@ mod io {
 mod ui {
     pub mod edit;
     mod icons;
+    pub mod shape;
     pub mod style;
     pub mod toolbar;
-    mod utils;
+    pub mod utils;
     pub mod viewer;
     pub mod welcome;
 
     pub use edit::*;
+    pub use shape::*;
+    pub use style::*;
     pub use toolbar::*;
     pub use viewer::*;
     pub use welcome::welcome;
@@ -162,13 +165,8 @@ impl Application for Ps {
                     ToolbarMessage::Back => {
                         state.is_editing = false;
                     }
-                    ToolbarMessage::ClearCanvas => {
-                        state.edit.reset();
-                    }
-                    ToolbarMessage::Export => state.edit.save(),
-                    ToolbarMessage::SelectShape(s) => {
-                        state.edit.change_shape(s);
-                    }
+                    ToolbarMessage::Export => state.edit.export(),
+                    ToolbarMessage::Edit(em) => state.edit.update(em),
                     ToolbarMessage::Open => match pick() {
                         Some(p) => {
                             return Command::perform(open(p, true), ViewerMessage::ImageLoaded)
@@ -194,11 +192,7 @@ impl Application for Ps {
                             key_code,
                             modifiers,
                         } => {
-                            if state.is_editing {
-                                if key_code == KeyCode::Delete && modifiers.is_empty() {
-                                    state.edit.remove_curve();
-                                }
-                            } else {
+                            if !state.is_editing {
                                 match key_code {
                                     KeyCode::Delete => {
                                         if modifiers.is_empty() {
