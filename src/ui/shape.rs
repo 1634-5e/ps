@@ -1,37 +1,30 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use iced::{canvas::Path, Point, Size};
+use iced::{canvas::Path, Point, Size, Vector};
 
 use svg::node::element::path::Data;
 
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
 use dyn_clone::{clone_box, DynClone};
 
-use super::utils::{SerdePoint, SerdeSize};
-use super::CurveMessage;
 use crate::ui::utils::get_size;
-
 
 #[derive(Debug, Clone)]
 pub enum ShapeMessage {
     Labor(Point),
     MovePoint(String, Point),
     Move(f32, f32),
+    Centered(Point),
+    Reset,
 }
 
-pub trait Shape:
-    Send + Debug + DynClone + serde_traitobject::Serialize + serde_traitobject::Deserialize
-{
+pub trait Shape: Send + Debug + DynClone {
     //utils
     fn is_empty(&self) -> bool;
     fn is_complete(&self) -> bool;
     fn points(&self) -> HashMap<String, Point>;
 
     //manipulation
-    fn update(&mut self, message: ShapeMessage) -> Option<CurveMessage>;
-    fn reset(&mut self);
+    fn update(&mut self, message: ShapeMessage);
 
     //drawing
     fn preview(&self, cursor_position: Point) -> Option<Path>;
@@ -51,12 +44,9 @@ impl Default for Box<dyn Shape> {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub struct Line {
-    #[serde_as(as = "Option<SerdePoint>")]
     from: Option<Point>,
-    #[serde_as(as = "Option<SerdePoint>")]
     to: Option<Point>,
 }
 
@@ -81,18 +71,13 @@ impl Shape for Line {
         points
     }
 
-    fn update(&mut self, message: ShapeMessage) -> Option<CurveMessage> {
+    fn update(&mut self, message: ShapeMessage) {
         match message {
             ShapeMessage::Labor(point) => {
                 if self.from.is_none() {
                     self.from = Some(point);
                 } else if self.to.is_none() {
                     self.to = Some(point);
-                }
-                if self.is_complete() {
-                    let add = self.clone();
-                    self.reset();
-                    return Some(CurveMessage::AddCurve(Box::new(add)));
                 }
             }
             ShapeMessage::MovePoint(index, point) => match index.as_str() {
@@ -118,13 +103,23 @@ impl Shape for Line {
                     to.y += y;
                 }
             }
-        }
-        None
-    }
-    fn reset(&mut self) {
-        if !self.is_empty() {
-            self.from = None;
-            self.to = None;
+            ShapeMessage::Centered(p) => {
+                if let (Some(from), Some(to)) = (self.from, self.to) {
+                    let center_x = (from.x + to.x) / 2.0;
+                    let center_y = (from.y + to.y) / 2.0;
+
+                    let x_shift = p.x - center_x;
+                    let y_shift = p.y - center_y;
+
+                    self.update(ShapeMessage::Move(x_shift, y_shift));
+                }
+            }
+            ShapeMessage::Reset => {
+                if !self.is_empty() {
+                    self.from = None;
+                    self.to = None;
+                }
+            }
         }
     }
 
@@ -170,12 +165,9 @@ impl Shape for Line {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub struct Rectangle {
-    #[serde_as(as = "Option<SerdePoint>")]
     top_left: Option<Point>,
-    #[serde_as(as = "Option<SerdeSize>")]
     size: Option<Size>,
 }
 
@@ -220,7 +212,7 @@ impl Shape for Rectangle {
         points
     }
 
-    fn update(&mut self, message: ShapeMessage) -> Option<CurveMessage> {
+    fn update(&mut self, message: ShapeMessage) {
         match message {
             ShapeMessage::Labor(point) => {
                 if self.top_left.is_none() {
@@ -229,12 +221,6 @@ impl Shape for Rectangle {
 
                 else if let Some(top_left) = self.top_left && self.size.is_none() {
                     self.size = Some(get_size(top_left, point));
-                }
-
-                if self.is_complete() {
-                    let add = self.clone();
-                    self.reset();
-                    return Some(CurveMessage::AddCurve(Box::new(add)));
                 }
             }
             ShapeMessage::MovePoint(index, point) => match index.as_str() {
@@ -273,13 +259,23 @@ impl Shape for Rectangle {
                     top_left.y += y;
                 }
             }
-        }
-        None
-    }
-    fn reset(&mut self) {
-        if !self.is_empty() {
-            self.top_left = None;
-            self.size = None;
+            ShapeMessage::Centered(p) => {
+                if let (Some(top_left), Some(size)) = (self.top_left, self.size) {
+                    let center_x = top_left.x + size.width / 2.0;
+                    let center_y = top_left.y + size.height / 2.0;
+
+                    let x_shift = p.x - center_x;
+                    let y_shift = p.y - center_y;
+
+                    self.update(ShapeMessage::Move(x_shift, y_shift));
+                }
+            }
+            ShapeMessage::Reset => {
+                if !self.is_empty() {
+                    self.top_left = None;
+                    self.size = None;
+                }
+            }
         }
     }
 
@@ -331,14 +327,10 @@ impl Shape for Rectangle {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub struct Triangle {
-    #[serde_as(as = "Option<SerdePoint>")]
     a: Option<Point>,
-    #[serde_as(as = "Option<SerdePoint>")]
     b: Option<Point>,
-    #[serde_as(as = "Option<SerdePoint>")]
     c: Option<Point>,
 }
 
@@ -367,7 +359,7 @@ impl Shape for Triangle {
         points
     }
 
-    fn update(&mut self, message: ShapeMessage) -> Option<CurveMessage> {
+    fn update(&mut self, message: ShapeMessage) {
         match message {
             ShapeMessage::Labor(point) => {
                 if self.a.is_none() {
@@ -376,12 +368,6 @@ impl Shape for Triangle {
                     self.b = Some(point);
                 } else if self.c.is_none() {
                     self.c = Some(point);
-                }
-
-                if self.is_complete() {
-                    let add = self.clone();
-                    self.reset();
-                    return Some(CurveMessage::AddCurve(Box::new(add)));
                 }
             }
             ShapeMessage::MovePoint(index, point) => match index.as_str() {
@@ -416,14 +402,24 @@ impl Shape for Triangle {
                     c.y += y;
                 }
             }
-        }
-        None
-    }
-    fn reset(&mut self) {
-        if !self.is_empty() {
-            self.a = None;
-            self.b = None;
-            self.c = None;
+            ShapeMessage::Centered(p) => {
+                if let (Some(a), Some(b), Some(c)) = (self.a, self.b, self.c) {
+                    let center_x = (a.x + b.x + c.x) / 2.0;
+                    let center_y = (a.y + b.y + c.y) / 2.0;
+
+                    let x_shift = p.x - center_x;
+                    let y_shift = p.y - center_y;
+
+                    self.update(ShapeMessage::Move(x_shift, y_shift));
+                }
+            }
+            ShapeMessage::Reset => {
+                if !self.is_empty() {
+                    self.a = None;
+                    self.b = None;
+                    self.c = None;
+                }
+            }
         }
     }
 
@@ -496,14 +492,10 @@ impl Shape for Triangle {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone)]
 pub struct QuadraticBezier {
-    #[serde_as(as = "Option<SerdePoint>")]
     a: Option<Point>,
-    #[serde_as(as = "Option<SerdePoint>")]
     b: Option<Point>,
-    #[serde_as(as = "Option<SerdePoint>")]
     control: Option<Point>,
 }
 
@@ -532,7 +524,7 @@ impl Shape for QuadraticBezier {
         points
     }
 
-    fn update(&mut self, message: ShapeMessage) -> Option<CurveMessage> {
+    fn update(&mut self, message: ShapeMessage) {
         match message {
             ShapeMessage::Labor(point) => {
                 if self.a.is_none() {
@@ -541,12 +533,6 @@ impl Shape for QuadraticBezier {
                     self.b = Some(point);
                 } else if self.control.is_none() {
                     self.control = Some(point);
-                }
-
-                if self.is_complete() {
-                    let add = self.clone();
-                    self.reset();
-                    return Some(CurveMessage::AddCurve(Box::new(add)));
                 }
             }
             ShapeMessage::MovePoint(index, point) => match index.as_str() {
@@ -581,14 +567,24 @@ impl Shape for QuadraticBezier {
                     control.y += y;
                 }
             }
-        }
-        None
-    }
-    fn reset(&mut self) {
-        if !self.is_empty() {
-            self.a = None;
-            self.b = None;
-            self.control = None;
+            ShapeMessage::Centered(p) => {
+                if let (Some(a), Some(b)) = (self.a, self.b) {
+                    let center_x = (a.x + b.x) / 2.0;
+                    let center_y = (a.y + b.y) / 2.0;
+
+                    let x_shift = p.x - center_x;
+                    let y_shift = p.y - center_y;
+
+                    self.update(ShapeMessage::Move(x_shift, y_shift));
+                }
+            }
+            ShapeMessage::Reset => {
+                if !self.is_empty() {
+                    self.a = None;
+                    self.b = None;
+                    self.control = None;
+                }
+            }
         }
     }
 
@@ -649,3 +645,184 @@ impl Shape for QuadraticBezier {
         }
     }
 }
+
+// #[derive(Debug, Default, Clone)]
+// pub struct Ellipse {
+//      center: Option<Point>,
+//     radii: Option<Vector<f32>>,
+//      rotation: Option<f32>,
+//      start_angle: Option<f32>,
+//      end_angle: Option<f32>,
+// }
+
+// impl Shape for Ellipse {
+//     fn is_complete(&self) -> bool {
+//         self.center.is_some() && self.radii.is_some() && self.rotation.is_some() && self.start_angle.is_some() && self.end_angle.is_some()
+//     }
+//     fn is_empty(&self) -> bool {
+//         self.center.is_none() && self.radii.is_none() && self.rotation.is_none() && self.start_angle.is_none() && self.end_angle.is_none()
+//     }
+//     fn points(&self) -> HashMap<String, Point> {
+//         let mut points = HashMap::new();
+
+//         if let Some(center) = self.center {
+//             points.insert(String::from("center"), center);
+//             if let Some(r) = self.radius {
+//                 points.insert(
+//                     String::from("up"),
+//                     Point {
+//                         x: center.x,
+//                         y: center.y + r,
+//                     },
+//                 );
+//                 points.insert(
+//                     String::from("down"),
+//                     Point {
+//                         x: center.x,
+//                         y: center.y - r,
+//                     },
+//                 );
+//                 points.insert(
+//                     String::from("left"),
+//                     Point {
+//                         x: center.x - r,
+//                         y: center.y,
+//                     },
+//                 );
+//                 points.insert(
+//                     String::from("right"),
+//                     Point {
+//                         x: center.x,
+//                         y: center.y + r,
+//                     },
+//                 );
+//             }
+//         }
+
+//         points
+//     }
+
+//     fn update(&mut self, message: ShapeMessage) {
+//         match message {
+//             ShapeMessage::Labor(point) => {
+//                 if self.center.is_none() {
+//                     self.center = Some(point);
+//                 } else if let Some(center) = self.center && self.radius.is_none() {
+//                     self.radius = Some(((point.x - center.x) * (point.x - center.x) + (point.y - center.y) * (point.y - center.y)).sqrt());
+//                 }
+//             }
+//             ShapeMessage::MovePoint(index, point) => match index.as_str() {
+//                 s if s =="center" => {
+//                     if let Some(center) = &mut self.center {
+//                         *center = point;
+//                     }
+//                 }
+//                 s => if let (Some(center), Some(radius)) = (self.center, self.radius) {
+//                     match s {
+//                         "up" => {
+                            
+//                         }
+//                         "down" => {
+                            
+//                         }"left" => {
+                            
+//                         }"right" => {
+                            
+//                         }
+//                         _ => {}
+//                     }
+//                 }
+                
+//             },
+//             ShapeMessage::Move(x, y) => {
+//                 if let Some(a) = &mut self.a {
+//                     a.x += x;
+//                     a.y += y;
+//                 }
+//                 if let Some(b) = &mut self.b {
+//                     b.x += x;
+//                     b.y += y;
+//                 }
+//                 if let Some(control) = &mut self.control {
+//                     control.x += x;
+//                     control.y += y;
+//                 }
+//             }
+//             ShapeMessage::Centered(p) => {
+//                 if let (Some(a), Some(b)) = (self.a, self.b) {
+//                     let center_x = (a.x + b.x) / 2.0;
+//                     let center_y = (a.y + b.y) / 2.0;
+
+//                     let x_shift = p.x - center_x;
+//                     let y_shift = p.y - center_y;
+
+//                     self.update(ShapeMessage::Move(x_shift, y_shift));
+//                 }
+//             }
+//             ShapeMessage::Reset => {
+//                 if !self.is_empty() {
+//                     self.a = None;
+//                     self.b = None;
+//                     self.control = None;
+//                 }
+//             }
+//         }
+//     }
+
+//     fn preview(&self, cursor_position: Point) -> Option<Path> {
+//         if let Some(a) = self.a {
+//             if let Some(b) = self.b {
+//                 Some(Path::new(|p| {
+//                     p.move_to(a);
+//                     p.quadratic_curve_to(cursor_position, b);
+//                 }))
+//             } else {
+//                 Some(Path::new(|p| {
+//                     p.move_to(a);
+//                     p.line_to(cursor_position);
+//                 }))
+//             }
+//         } else {
+//             None
+//         }
+//     }
+//     fn draw(&self, selected: bool) -> (Option<Path>, Option<Path>) {
+//         if let (Some(a), Some(b), Some(control)) = (self.a, self.b, self.control) {
+//             let to_fill = if selected {
+//                 Some(Path::new(|builder| {
+//                     builder.circle(a, 5.0);
+//                     builder.circle(b, 5.0);
+//                     builder.circle(control, 5.0);
+//                 }))
+//             } else {
+//                 None
+//             };
+//             (
+//                 Some(Path::new(|builder| {
+//                     builder.move_to(a);
+//                     builder.quadratic_curve_to(control, b);
+
+//                     if selected {
+//                         builder.move_to(a);
+//                         builder.line_to(control);
+//                         builder.line_to(b);
+//                     }
+//                 })),
+//                 to_fill,
+//             )
+//         } else {
+//             (None, None)
+//         }
+//     }
+//     fn save(&self) -> Option<Data> {
+//         if let (Some(a), Some(b), Some(control)) = (self.a, self.b, self.control) {
+//             Some(
+//                 Data::new()
+//                     .move_to((a.x, a.y))
+//                     .quadratic_curve_to(vec![control.x, control.y, b.x, b.y]),
+//             )
+//         } else {
+//             None
+//         }
+//     }
+// }

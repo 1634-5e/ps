@@ -1,6 +1,6 @@
 use iced::{Color, Point, Size};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::{DeserializeAs, SerializeAs};
+// use serde::{Deserialize, Deserializer, Serialize, Serializer};
+// use serde_with::{DeserializeAs, SerializeAs};
 
 pub fn get_size(left_top: Point, right_bottom: Point) -> Size {
     Size::new(right_bottom.x - left_top.x, right_bottom.y - left_top.y)
@@ -30,79 +30,79 @@ pub fn get_format_color(color: Color) -> String {
     ["#".to_string(), r, g, b].concat()
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Point")]
-pub struct SerdePoint {
-    pub x: f32,
-    pub y: f32,
-}
+// #[derive(Serialize, Deserialize)]
+// #[serde(remote = "Point")]
+// pub struct SerdePoint {
+//     pub x: f32,
+//     pub y: f32,
+// }
 
-impl SerializeAs<Point> for SerdePoint {
-    fn serialize_as<S>(value: &Point, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        SerdePoint::serialize(value, serializer)
-    }
-}
+// impl SerializeAs<Point> for SerdePoint {
+//     fn serialize_as<S>(value: &Point, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         SerdePoint::serialize(value, serializer)
+//     }
+// }
 
-impl<'de> DeserializeAs<'de, Point> for SerdePoint {
-    fn deserialize_as<D>(deserializer: D) -> Result<Point, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        SerdePoint::deserialize(deserializer)
-    }
-}
+// impl<'de> DeserializeAs<'de, Point> for SerdePoint {
+//     fn deserialize_as<D>(deserializer: D) -> Result<Point, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         SerdePoint::deserialize(deserializer)
+//     }
+// }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Color")]
-pub struct SerdeColor {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-    pub a: f32,
-}
+// #[derive(Serialize, Deserialize)]
+// #[serde(remote = "Color")]
+// pub struct SerdeColor {
+//     pub r: f32,
+//     pub g: f32,
+//     pub b: f32,
+//     pub a: f32,
+// }
 
-impl SerializeAs<Color> for SerdeColor {
-    fn serialize_as<S>(value: &Color, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        SerdeColor::serialize(value, serializer)
-    }
-}
+// impl SerializeAs<Color> for SerdeColor {
+//     fn serialize_as<S>(value: &Color, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         SerdeColor::serialize(value, serializer)
+//     }
+// }
 
-impl<'de> DeserializeAs<'de, Color> for SerdeColor {
-    fn deserialize_as<D>(deserializer: D) -> Result<Color, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        SerdeColor::deserialize(deserializer)
-    }
-}
+// impl<'de> DeserializeAs<'de, Color> for SerdeColor {
+//     fn deserialize_as<D>(deserializer: D) -> Result<Color, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         SerdeColor::deserialize(deserializer)
+//     }
+// }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Size")]
-pub struct SerdeSize<T = f32> {
-    pub width: T,
-    pub height: T,
-}
+// #[derive(Serialize, Deserialize)]
+// #[serde(remote = "Size")]
+// pub struct SerdeSize<T = f32> {
+//     pub width: T,
+//     pub height: T,
+// }
 
-impl SerializeAs<Size> for SerdeSize {
-    fn serialize_as<S>(value: &Size, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        SerdeSize::serialize(value, serializer)
-    }
-}
+// impl SerializeAs<Size> for SerdeSize {
+//     fn serialize_as<S>(value: &Size, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         SerdeSize::serialize(value, serializer)
+//     }
+// }
 
-impl<'de> DeserializeAs<'de, Size> for SerdeSize {
-    fn deserialize_as<D>(deserializer: D) -> Result<Size, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        SerdeSize::deserialize(deserializer)
-    }
-}
+// impl<'de> DeserializeAs<'de, Size> for SerdeSize {
+//     fn deserialize_as<D>(deserializer: D) -> Result<Size, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         SerdeSize::deserialize(deserializer)
+//     }
+// }

@@ -3,13 +3,11 @@ use std::{
     path::PathBuf,
 };
 
-use serde::{Deserialize, Serialize};
-
 use crate::ui::Curve;
 
 const FILE_NAME: &str = "last_place";
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct SavedState {
     // pub is_editing: bool,
 

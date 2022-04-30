@@ -7,8 +7,6 @@
 //暂时放下用户设置部分
 
 pub fn main() -> iced::Result {
-    println!("running");
-
     //处理拖拽事件,第一个值是程序的路径（可能是相对路径，也可能是绝对路径），后面的应该全是被拖拽文件（夹）的路径
     let env_args: Vec<PathBuf> = env::args().map(PathBuf::from).collect();
     // let user_settings = Rc::new(RefCell::new(UserSettings {
@@ -53,10 +51,9 @@ mod ui {
 
 use std::env;
 
-use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
-use iced::time::every;
+// use iced::time::every;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
 use iced_native::mouse::Event as MouseEvent;
@@ -66,10 +63,10 @@ use iced_native::Event;
 use io::*;
 
 //用于决定Path,这里的生成的目录是/author/name/，但是只需要一级目录，所以稍微改了一点
-const APP_INFO: AppInfo = AppInfo {
-    name: "never use",
-    author: "Ps",
-};
+// const APP_INFO: AppInfo = AppInfo {
+//     name: "never use",
+//     author: "Ps",
+// };
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Flags {
@@ -112,31 +109,33 @@ impl Application for Ps {
     type Flags = Flags;
 
     fn new(flags: Flags) -> (Ps, Command<Message>) {
-        let command = match &flags.env_args[..] {
-            [_, to_open @ ..] if !to_open.is_empty() => {
+        let (ps, command) = match &flags.env_args[..] {
+            [_, to_open @ ..] if !to_open.is_empty() => (
+                Ps::Loading,
                 Command::perform(open(to_open.to_vec(), false), ViewerMessage::ImageLoaded)
-                    .map(Message::Viewer)
-            }
+                    .map(Message::Viewer),
+            ),
             _ => {
-                if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
-                    if let Some(parent) = path.parent() {
-                        assert_eq!(
-                            PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
-                            parent.to_path_buf()
-                        );
-                        Command::perform(
-                            last_place::load(parent.to_path_buf()),
-                            Message::StateRestored,
-                        )
-                    } else {
-                        Command::none()
-                    }
-                } else {
-                    Command::none()
-                }
+                // if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
+                //     if let Some(parent) = path.parent() {
+                //         assert_eq!(
+                //             PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
+                //             parent.to_path_buf()
+                //         );
+                //         Command::perform(
+                //             last_place::load(parent.to_path_buf()),
+                //             Message::StateRestored,
+                //         )
+                //     } else {
+                //         Command::none()
+                //     }
+                // } else {
+                //     Command::none()
+                // }
+                (Ps::Loaded(Box::new(State::default())), Command::none())
             }
         };
-        (Ps::Loading, command)
+        (ps, command)
     }
 
     fn title(&self) -> String {

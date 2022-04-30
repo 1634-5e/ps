@@ -13,9 +13,6 @@ use iced::{
     Point, Rectangle as IcedRectangle, Row, Slider, Space, Text,
 };
 
-use serde::{Deserialize, Serialize};
-
-use serde_with::serde_as;
 use svg::node::element::Path as SvgPath;
 use svg::Document;
 
@@ -24,12 +21,9 @@ use super::{
     utils::{get_format_color, is_valid_rgb},
 };
 use crate::io::dialogs::save as save_file;
-use crate::ui::utils::SerdeColor;
 
 #[derive(Debug, Clone)]
 pub enum CurveMessage {
-    AddCurve(Box<dyn Shape>),
-
     Shape(ShapeMessage),
 
     InputColorR(String),
@@ -46,7 +40,7 @@ pub enum CurveMessage {
     LineJoinSelected(EqLineJoin),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EqLineCap {
     Butt,
     Round,
@@ -77,7 +71,7 @@ impl Display for EqLineCap {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EqLineJoin {
     Miter,
     Round,
@@ -115,18 +109,21 @@ pub struct Curve {
     width: f32,
     line_cap: EqLineCap,
     line_join: EqLineJoin,
-    line_dash: f32,
+    segments: Vec<f32>,
+    offset: usize,
 }
 
 impl Default for Curve {
     fn default() -> Self {
+        let line_dash = LineDash::default();
         Curve {
             shape: Box::new(Line::default()),
             color: Color::BLACK,
             width: 2.0,
             line_cap: EqLineCap::Round,
             line_join: EqLineJoin::Round,
-            line_dash: 0.0,
+            segments: line_dash.segments.to_vec(),
+            offset: line_dash.offset,
         }
     }
 }
@@ -134,14 +131,8 @@ impl Default for Curve {
 impl Curve {
     pub fn update(&mut self, message: CurveMessage) -> Option<EditMessage> {
         match message {
-            CurveMessage::AddCurve(s) => {
-                return Some(EditMessage::AddCurve(Curve { shape: s, ..*self }))
-            }
-
             CurveMessage::Shape(sm) => {
-                if let Some(cm) = self.shape.update(sm) {
-                    self.update(cm);
-                }
+                self.shape.update(sm);
             }
 
             CurveMessage::InputColorR(r) => {
@@ -195,8 +186,8 @@ impl Curve {
                     line_cap: self.line_cap.into(),
                     line_join: self.line_join.into(),
                     line_dash: LineDash {
-                        segments: &[self.line_dash],
-                        offset: 0,
+                        segments: &self.segments,
+                        offset: self.offset,
                     },
                 },
             );
@@ -214,8 +205,8 @@ impl Curve {
                     line_cap: self.line_cap.into(),
                     line_join: self.line_join.into(),
                     line_dash: LineDash {
-                        segments: &[self.line_dash],
-                        offset: 0,
+                        segments: &self.segments,
+                        offset: self.offset,
                     },
                 },
             );
@@ -246,7 +237,8 @@ impl Curve {
 pub enum EditMessage {
     Curve(CurveMessage),
     ChangeShape(Box<dyn Shape>),
-    AddCurve(Curve),
+    AddFromPending,
+    CurvePasted(Point),
     Clear,
     RemoveCurve,
 }
@@ -263,7 +255,7 @@ pub struct Edit {
     curve_to_select: Option<usize>,
 
     pressed_point: Option<Point>,
-    nearest_point: Option<(usize, String)>, //（curves下标，points下标
+    nearest_point: Option<(usize, String)>, //（curves下标，points下标,以及点坐标
 
     ctrl_pressed: bool,
 
@@ -283,12 +275,12 @@ pub struct Edit {
 }
 
 impl Edit {
-    pub fn new(curves: Vec<Curve>) -> Self {
-        Edit {
-            curves,
-            ..Edit::default()
-        }
-    }
+    // pub fn new(curves: Vec<Curve>) -> Self {
+    //     Edit {
+    //         curves,
+    //         ..Edit::default()
+    //     }
+    // }
 
     pub fn update(&mut self, message: EditMessage) {
         match message {
@@ -318,10 +310,23 @@ impl Edit {
                     self.selected_curve = None;
                 }
             }
-            EditMessage::AddCurve(c) => {
-                self.curves.push(c);
+            EditMessage::AddFromPending => {
+                self.curves.push(self.pending.clone());
+                self.pending.shape.update(ShapeMessage::Reset);
                 self.selected_curve = Some(self.curves.len() - 1);
             }
+            EditMessage::CurvePasted(point) => {
+                if let Some(copied) = &self.copied_curve {
+                    let mut new = copied.clone();
+                    new.shape.update(ShapeMessage::Centered(point));
+                    self.curves.push(new);
+                    self.selected_curve = Some(self.curves.len() - 1);
+                }
+            }
+        }
+
+        if self.pending.shape.is_complete() {
+            self.update(EditMessage::AddFromPending);
         }
 
         self.dirty = true;
@@ -330,18 +335,25 @@ impl Edit {
 
     pub fn view(&mut self) -> Element<EditMessage> {
         let (
+            points,
             Curve {
                 color,
                 width,
                 line_cap,
                 line_join,
+                segments,
+                offset,
                 ..
             },
             edit_title,
         ) = if let Some(selected) = self.selected_curve {
-            (&self.curves[selected], "Selected curve")
+            (
+                self.curves[selected].shape.points(),
+                &self.curves[selected],
+                "Selected curve",
+            )
         } else {
-            (&self.pending, "Creating")
+            (self.pending.shape.points(), &self.pending, "Creating")
         };
 
         let (r, g, b) = (
@@ -351,11 +363,33 @@ impl Edit {
         );
         let width = width.to_string();
 
-        let editable = Column::new()
+        //排序points防止顺序一直变化
+        let mut points = points.into_iter().collect::<Vec<(String, Point)>>();
+        points.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        let mut editable = Column::new()
             .width(Length::FillPortion(2))
-            .align_items(Alignment::Center)
+            .align_items(Alignment::Start)
             .spacing(15)
-            .push(Text::new(edit_title).height(Length::Units(40)).size(25))
+            .push(Text::new(edit_title).height(Length::Units(40)).size(25));
+
+        editable = points.into_iter().fold(editable, |acc, (index, p)| {
+            acc.push(
+                Row::new()
+                    .align_items(Alignment::Center)
+                    .spacing(10)
+                    .push(Text::new(format!("{:?}: ({:.2},{:.2})", index, p.x, p.y))),
+            )
+        });
+
+        editable = editable
+            .push(
+                Row::new()
+                    .align_items(Alignment::Center)
+                    .spacing(10)
+                    .push(Text::new(format!("Segments: {:?}", segments)))
+                    .push(Text::new(format!("offset: {:?}", offset))),
+            )
             .push(Text::new("Color:  "))
             .push(
                 Row::new()
@@ -566,13 +600,15 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                 Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                     if let Some(pressed) = self.pressed_point {
                         if pressed.distance(cursor_position) < DrawingBoard::DETERMINANT_DISTANCE {
-                            return (
-                                event::Status::Captured,
-                                self.pending
-                                    .shape
-                                    .update(ShapeMessage::Labor(cursor_position))
-                                    .map(EditMessage::Curve),
-                            );
+                            self.pending
+                                .shape
+                                .update(ShapeMessage::Labor(cursor_position));
+                            if self.pending.shape.is_complete() {
+                                return (
+                                    event::Status::Captured,
+                                    Some(EditMessage::AddFromPending),
+                                );
+                            }
                         }
                     }
                     *self.pressed_point = None;
@@ -583,7 +619,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                     modifiers,
                 }) => {
                     if key_code == KeyCode::Escape && modifiers.is_empty() {
-                        self.pending.shape.reset();
+                        self.pending.shape.update(ShapeMessage::Reset);
                     }
                 }
                 _ => {}
@@ -594,15 +630,10 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                     mouse::Event::CursorMoved { position: _ } => {
                         //查看是否有最近的点，意味着已经按下左键但未松开
                         if let Some((curves_index, points_index)) = self.nearest_point {
-                            let nearest_point =
-                                self.curves[*curves_index].shape.points()[points_index];
-                            if nearest_point.distance(cursor_position)
-                                > DrawingBoard::DETERMINANT_DISTANCE
-                            {
+                            if let Some(point) = self.curves[*curves_index].shape.points().get(points_index) && point.distance(cursor_position) > DrawingBoard::DETERMINANT_DISTANCE {
                                 if *self.ctrl_pressed {
-                                    let x_shift = cursor_position.x - nearest_point.x;
-                                    let y_shift = cursor_position.y - nearest_point.y;
-
+                                    let x_shift = cursor_position.x - point.x;
+                                    let y_shift = cursor_position.y - point.y;
                                     return (
                                         event::Status::Captured,
                                         Some(EditMessage::Curve(CurveMessage::Shape(
@@ -671,13 +702,15 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                                 *self.selected_curve = self.decide_which_curve(cursor_position);
 
                                 if self.selected_curve.is_none() {
-                                    return (
-                                        event::Status::Captured,
-                                        self.pending
-                                            .shape
-                                            .update(ShapeMessage::Labor(cursor_position))
-                                            .map(EditMessage::Curve),
-                                    );
+                                    self.pending
+                                        .shape
+                                        .update(ShapeMessage::Labor(cursor_position));
+                                    if self.pending.shape.is_complete() {
+                                        return (
+                                            event::Status::Captured,
+                                            Some(EditMessage::AddFromPending),
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -698,6 +731,15 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                         if key_code == KeyCode::C && modifiers.contains(Modifiers::CTRL) {
                             if let Some(selected) = self.selected_curve {
                                 *self.copied_curve = Some(self.curves[*selected].clone());
+                            }
+                        }
+
+                        if key_code == KeyCode::V && modifiers.contains(Modifiers::CTRL) {
+                            if self.copied_curve.is_some() {
+                                return (
+                                    event::Status::Captured,
+                                    Some(EditMessage::CurvePasted(cursor_position)),
+                                );
                             }
                         }
                     }
