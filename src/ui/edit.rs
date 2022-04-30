@@ -108,12 +108,9 @@ impl Display for EqLineJoin {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub struct Curve {
-    #[serde(with = "serde_traitobject")]
     shape: Box<dyn Shape>,
-    #[serde_as(as = "SerdeColor")]
     color: Color,
     width: f32,
     line_cap: EqLineCap,
