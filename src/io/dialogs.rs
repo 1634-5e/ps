@@ -94,10 +94,15 @@ pub async fn open(mut paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf
                 }
             }
         } else {
-            images.push(path);
+            match path.extension() {
+                Some(e) if e.eq("png") || e.eq("svg") || e.eq("jpg") => {
+                    images.push(path);
+                }
+                _ => {}
+            }
         }
     }
 
-    //FIXME:暂时去除了自动选current
+    //暂时去除了自动选current
     (images, Some(0))
 }

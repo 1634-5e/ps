@@ -51,8 +51,10 @@ mod ui {
 
 use std::env;
 
+use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
+use iced::time::every;
 // use iced::time::every;
 use iced::{Application, Column, Length, Settings};
 use iced::{Command, Element, Subscription};
@@ -63,10 +65,10 @@ use iced_native::Event;
 use io::*;
 
 //用于决定Path,这里的生成的目录是/author/name/，但是只需要一级目录，所以稍微改了一点
-// const APP_INFO: AppInfo = AppInfo {
-//     name: "never use",
-//     author: "Ps",
-// };
+const APP_INFO: AppInfo = AppInfo {
+    name: "never use",
+    author: "Ps",
+};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Flags {
@@ -83,7 +85,7 @@ pub struct State {
     edit: Edit,
     toolbar: Toolbar,
     is_editing: bool,
-    // is_saving: bool,
+    is_saving: bool,
 }
 
 #[derive(Debug)]
@@ -93,8 +95,8 @@ pub enum Message {
     Toolbar(ToolbarMessage),
     StateRestored(std::io::Result<Option<SavedState>>),
     ExternEvent(Event),
-    // SavedOrFailed(std::io::Result<()>),
-    // AutoSave,
+    SavedOrFailed(std::io::Result<()>),
+    AutoSave,
 }
 
 #[derive(Debug)]
@@ -109,33 +111,32 @@ impl Application for Ps {
     type Flags = Flags;
 
     fn new(flags: Flags) -> (Ps, Command<Message>) {
-        let (ps, command) = match &flags.env_args[..] {
-            [_, to_open @ ..] if !to_open.is_empty() => (
-                Ps::Loading,
+        let command = match &flags.env_args[..] {
+            [_, to_open @ ..] if !to_open.is_empty() => {
                 Command::perform(open(to_open.to_vec(), false), ViewerMessage::ImageLoaded)
-                    .map(Message::Viewer),
-            ),
+                    .map(Message::Viewer)
+            }
             _ => {
-                // if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
-                //     if let Some(parent) = path.parent() {
-                //         assert_eq!(
-                //             PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
-                //             parent.to_path_buf()
-                //         );
-                //         Command::perform(
-                //             last_place::load(parent.to_path_buf()),
-                //             Message::StateRestored,
-                //         )
-                //     } else {
-                //         Command::none()
-                //     }
-                // } else {
-                //     Command::none()
-                // }
-                (Ps::Loaded(Box::new(State::default())), Command::none())
+                if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
+                    if let Some(parent) = path.parent() {
+                        // assert_eq!(
+                        //     PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
+                        //     parent.to_path_buf()
+                        // );
+                        Command::perform(
+                            last_place::load_state(parent.to_path_buf()),
+                            Message::StateRestored,
+                        )
+                    } else {
+                        Command::none()
+                    }
+                } else {
+                    Command::none()
+                }
+                // (Ps::Loaded(Box::new(State::default())), Command::none())
             }
         };
-        (ps, command)
+        (Ps::Loading, command)
     }
 
     fn title(&self) -> String {
@@ -147,22 +148,22 @@ impl Application for Ps {
             Ps::Loading => match message {
                 Message::StateRestored(state) => {
                     if let Ok(Some(state)) = state {
-                        // let SavedState {
-                        //     is_editing,
-                        //     images,
-                        //     on_view,
-                        //     curves,
-                        // } = state;
-                        // *self = Ps::Loaded(Box::new(State {
-                        //     viewer: Viewer {
-                        //         images,
-                        //         on_view,
-                        //         ..Viewer::default()
-                        //     },
-                        //     edit: Edit::new(curves),
-                        //     is_editing,
-                        //     ..State::default()
-                        // }));
+                        let SavedState {
+                            is_editing,
+                            images,
+                            on_view,
+                            curves,
+                        } = state;
+                        *self = Ps::Loaded(Box::new(State {
+                            viewer: Viewer {
+                                images,
+                                on_view,
+                                ..Viewer::default()
+                            },
+                            edit: Edit::new(curves),
+                            is_editing,
+                            ..State::default()
+                        }));
                     } else {
                         *self = Ps::Loaded(Box::new(State::default()));
                     }
@@ -262,29 +263,29 @@ impl Application for Ps {
                 Message::Viewer(vm) => state.viewer.update(vm),
                 Message::Edit(em) => state.edit.update(em),
 
-                // Message::AutoSave => {
-                //     state.is_saving = true;
-                //     if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
-                //         if let Some(parent) = path.parent() {
-                //             let saved_state = SavedState {
-                //                 is_editing: state.is_editing,
-                //                 images: state.viewer.images.clone(),
-                //                 on_view: state.viewer.on_view,
-                //                 curves: state.edit.curves.clone(),
-                //             };
-                //             return Command::perform(
-                //                 save(saved_state, parent.to_path_buf()),
-                //                 Message::SavedOrFailed,
-                //             );
-                //         }
-                //     }
-                // }
-                // Message::SavedOrFailed(result) => {
-                //     state.is_saving = false;
-                //     if result.is_ok() {
-                //         state.edit.dirty = false;
-                //     }
-                // }
+                Message::AutoSave => {
+                    state.is_saving = true;
+                    if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
+                        if let Some(parent) = path.parent() {
+                            let saved_state = SavedState {
+                                is_editing: state.is_editing,
+                                images: state.viewer.images.clone(),
+                                on_view: state.viewer.on_view,
+                                curves: state.edit.curves.clone(),
+                            };
+                            return Command::perform(
+                                save_state(saved_state, parent.to_path_buf()),
+                                Message::SavedOrFailed,
+                            );
+                        }
+                    }
+                }
+                Message::SavedOrFailed(result) => {
+                    state.is_saving = false;
+                    if result.is_ok() {
+                        state.edit.dirty = false;
+                    }
+                }
                 _ => {}
             },
         }
@@ -321,13 +322,11 @@ impl Application for Ps {
             Ps::Loading => Subscription::none(),
             Ps::Loaded(state) => {
                 //trait object即使能序列化在程序关闭之后也没法反序列化，因此放弃last_place
-                // let auto_save = if state.edit.dirty && !state.is_saving {
-                //     every(std::time::Duration::from_secs(2)).map(|_| Message::AutoSave)
-                // } else {
-                //     Subscription::none()
-                // };
-
-                let auto_save = Subscription::none();
+                let auto_save = if state.edit.dirty && !state.is_saving {
+                    every(std::time::Duration::from_secs(2)).map(|_| Message::AutoSave)
+                } else {
+                    Subscription::none()
+                };
 
                 Subscription::batch(vec![
                     iced_native::subscription::events().map(Message::ExternEvent),

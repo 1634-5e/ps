@@ -29,15 +29,17 @@ impl Viewer {
     pub fn update(&mut self, message: ViewerMessage) {
         match message {
             ViewerMessage::ImageLoaded((mut images, on_view)) => {
-                let old_length = self.images.len();
-                if let (Some(pre), Some(new)) = (&mut self.on_view, on_view) {
-                    *pre = old_length + new;
+                if images.len() > 0 {
+                    let old_length = self.images.len();
+                    if let (Some(pre), Some(new)) = (&mut self.on_view, on_view) {
+                        *pre = old_length + new;
+                    }
+                    if self.on_view.is_none() {
+                        self.on_view = on_view;
+                    }
+                    self.images.append(&mut images);
+                    self.update_preview();
                 }
-                if self.on_view.is_none() {
-                    self.on_view = on_view;
-                }
-                self.images.append(&mut images);
-                self.update_preview();
             }
             ViewerMessage::CloseNotFound => self.close(),
             ViewerMessage::Navigate(i) => self.navigate(i),

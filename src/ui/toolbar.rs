@@ -36,6 +36,7 @@ pub struct Toolbar {
     rectangle: button::State,
     triangle: button::State,
     quadratic_bezier: button::State,
+    circle: button::State,
 }
 
 impl Toolbar {
@@ -84,6 +85,14 @@ impl Toolbar {
                 "triangle",
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     Triangle::default(),
+                )))),
+            ))
+            .push(button(
+                &mut self.circle,
+                icons::triangle(),
+                "circle",
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
+                    Circle::default(),
                 )))),
             ))
             .push(button(
