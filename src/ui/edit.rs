@@ -118,7 +118,7 @@ pub struct Curve {
     #[serde_as(as = "SerdeColor")]
     pub(crate) color: Color,
     pub(crate) width: f32,
-    pub(crate) line_cap: EqLineCap,
+    pub(crate) line_cap: EqLineCap,//这里其实应该叫Fmt~，因为使用这个类型的原因主要是要能够转化成字符串，用于svg设置样式，而序列化只需要引入这个类型就够了
     pub(crate) line_join: EqLineJoin,
     pub(crate) segments: Vec<f32>,
     pub(crate) offset: usize,
@@ -140,6 +140,7 @@ impl Default for Curve {
 }
 
 impl Curve {
+    #[inline(always)]
     pub fn update(&mut self, message: CurveMessage) -> Option<EditMessage> {
         match message {
             CurveMessage::Shape(sm) => {
@@ -198,6 +199,7 @@ impl Curve {
         None
     }
 
+    #[inline(always)]
     pub fn preview(&self, frame: &mut Frame, cursor_position: Point) {
         if let Some(path) = self.shape.preview(cursor_position) {
             frame.stroke(
