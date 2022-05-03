@@ -29,7 +29,7 @@ impl Viewer {
     pub fn update(&mut self, message: ViewerMessage) {
         match message {
             ViewerMessage::ImageLoaded((mut images, on_view)) => {
-                if images.len() > 0 {
+                if !images.is_empty() {
                     let old_length = self.images.len();
                     if let (Some(pre), Some(new)) = (&mut self.on_view, on_view) {
                         *pre = old_length + new;

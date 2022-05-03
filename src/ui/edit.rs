@@ -169,7 +169,7 @@ impl Curve {
             }
             CurveMessage::InputColorA(a) => {
                 if let Ok(a) = a.parse::<f32>() {
-                    if a >= 0.0 && a <= 1.0 {
+                    if (0.0..=1.0).contains(&a) {
                         self.color.a = a;
                     }
                 }
@@ -315,10 +315,8 @@ impl Edit {
                     if let Some(new_message) = self.curves[curve].update(cm) {
                         self.update(new_message);
                     }
-                } else {
-                    if let Some(new_message) = self.pending.update(cm) {
-                        self.update(new_message);
-                    }
+                } else if let Some(new_message) = self.pending.update(cm) {
+                    self.update(new_message);
                 }
             }
             EditMessage::ChangeShape(s) => {
@@ -691,7 +689,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                 Event::Mouse(mouse_event) => match mouse_event {
                     mouse::Event::CursorMoved { position: _ } => {
                         //查看是否有最近的点，意味着已经按下左键但未松开
-                        if let Some(_) = self.pressed_point {
+                        if self.pressed_point.is_some() {
                             if let (Some(_), Some(point)) = self.selected {
                                 if *self.ctrl_pressed {
                                     return (
@@ -774,19 +772,21 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                             }
                         }
 
-                        if key_code == KeyCode::V && modifiers.contains(Modifiers::CTRL) {
-                            if self.copied_curve.is_some() {
-                                return (
-                                    event::Status::Captured,
-                                    Some(EditMessage::CurvePasted(cursor_position)),
-                                );
-                            }
+                        if key_code == KeyCode::V
+                            && modifiers.contains(Modifiers::CTRL)
+                            && self.copied_curve.is_some()
+                        {
+                            return (
+                                event::Status::Captured,
+                                Some(EditMessage::CurvePasted(cursor_position)),
+                            );
                         }
 
-                        if key_code == KeyCode::Escape && modifiers.is_empty() {
-                            if self.selected.0.is_some() || self.selected.1.is_some() {
-                                *self.selected = (None, None);
-                            }
+                        if key_code == KeyCode::Escape
+                            && modifiers.is_empty()
+                            && (self.selected.0.is_some() || self.selected.1.is_some())
+                        {
+                            *self.selected = (None, None);
                         }
                     }
                     keyboard::Event::KeyReleased {

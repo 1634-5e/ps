@@ -3,6 +3,8 @@
 #![feature(if_let_guard)]
 #![windows_subsystem = "windows"]
 #![feature(let_chains)]
+#[allow(clippy::collapsible_match)]
+#[allow(clippy::single_match)]
 
 //暂时放下用户设置部分
 

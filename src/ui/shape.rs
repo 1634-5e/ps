@@ -143,14 +143,12 @@ impl Shape for Line {
     }
 
     fn preview(&self, cursor_position: Point) -> Option<Path> {
-        if let Some(from) = self.from {
-            Some(Path::new(|p| {
-                p.move_to(from);
-                p.line_to(cursor_position);
-            }))
-        } else {
-            None
-        }
+        self.from.map(|from| {
+            Path::new(|builder| {
+                builder.move_to(from);
+                builder.line_to(cursor_position);
+            })
+        })
     }
     fn draw(&self, selected: bool) -> (Option<Path>, Option<Path>) {
         if let (Some(from), Some(to)) = (self.from, self.to) {
@@ -312,13 +310,9 @@ impl Shape for Rectangle {
     }
 
     fn preview(&self, cursor_position: Point) -> Option<Path> {
-        if let Some(top_left) = self.top_left {
-            Some(Path::new(|p| {
-                p.rectangle(top_left, get_size(top_left, cursor_position))
-            }))
-        } else {
-            None
-        }
+        self.top_left.map(|top_left| {
+            Path::new(|builder| builder.rectangle(top_left, get_size(top_left, cursor_position)))
+        })
     }
     fn draw(&self, selected: bool) -> (Option<Path>, Option<Path>) {
         if let (Some(top_left), Some(size)) = (self.top_left, self.size) {
