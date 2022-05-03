@@ -296,7 +296,7 @@ impl Shape for Rectangle {
                     let x = p.x - center_x;
                     let y = p.y - center_y;
 
-                    if let (Some(top_left), Some(size)) = (&mut self.top_left, &mut self.size) {
+                    if let (Some(top_left), Some(_)) = (&mut self.top_left, &mut self.size) {
                         top_left.x += x;
                         top_left.y += y;
                     }

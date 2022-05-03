@@ -31,10 +31,12 @@ pub enum CurveMessage {
     InputColorR(String),
     InputColorG(String),
     InputColorB(String),
+    InputColorA(String),
 
     SlideColorR(f32),
     SlideColorG(f32),
     SlideColorB(f32),
+    SlideColorA(f32),
 
     InputWidth(String),
 
@@ -165,6 +167,13 @@ impl Curve {
                     }
                 }
             }
+            CurveMessage::InputColorA(a) => {
+                if let Ok(a) = a.parse::<f32>() {
+                    if a >= 0.0 && a <= 1.0 {
+                        self.color.a = a;
+                    }
+                }
+            }
             CurveMessage::InputWidth(w) => {
                 if let Ok(width) = w.parse::<f32>() {
                     self.width = width;
@@ -178,6 +187,9 @@ impl Curve {
             }
             CurveMessage::SlideColorB(b) => {
                 self.color.b = b;
+            }
+            CurveMessage::SlideColorA(a) => {
+                self.color.a = a;
             }
             CurveMessage::LineCapSelected(lc) => self.line_cap = lc,
             CurveMessage::LineJoinSelected(lj) => self.line_join = lj,
@@ -276,11 +288,13 @@ pub struct Edit {
     input_color_r: text_input::State,
     input_color_g: text_input::State,
     input_color_b: text_input::State,
+    input_color_a: text_input::State,
     input_width: text_input::State,
 
     slider_color_r: slider::State,
     slider_color_g: slider::State,
     slider_color_b: slider::State,
+    slider_color_a: slider::State,
 
     pick_line_cap: pick_list::State<EqLineCap>,
     pick_line_join: pick_list::State<EqLineJoin>,
@@ -341,6 +355,7 @@ impl Edit {
             self.update(EditMessage::AddFromPending);
         }
 
+        //响应事件之后将“脏位”置为是，同时重绘画布
         self.dirty = true;
         self.redraw();
     }
@@ -368,10 +383,11 @@ impl Edit {
             (self.pending.shape.points(), &self.pending, "Creating")
         };
 
-        let (r, g, b) = (
+        let (r, g, b, a) = (
             (color.r * 255.0).to_string(),
             (color.g * 255.0).to_string(),
             (color.b * 255.0).to_string(),
+            (color.a).to_string(),
         );
         let width = width.to_string();
 
@@ -385,16 +401,18 @@ impl Edit {
             .spacing(15)
             .push(Text::new(edit_title).height(Length::Units(40)).size(25));
 
-        editable = editable.push(Row::new().align_items(Alignment::Center).spacing(10)
-        .push(Text::new("Index:"))
-        .push(
-            PickList::new(
-                &mut self.pick_curve,
-                (0..self.curves.len()).collect::<Vec<usize>>(),
-                self.selected.0,
-                CurveMessage::CurveSelected,
-            ),
-        ));
+        editable = editable.push(
+            Row::new()
+                .align_items(Alignment::Center)
+                .spacing(10)
+                .push(Text::new("Index:"))
+                .push(PickList::new(
+                    &mut self.pick_curve,
+                    (0..self.curves.len()).collect::<Vec<usize>>(),
+                    self.selected.0,
+                    CurveMessage::CurveSelected,
+                )),
+        );
 
         editable = points.into_iter().fold(editable, |acc, (index, p)| {
             acc.push(
@@ -479,6 +497,29 @@ impl Edit {
                             "blue",
                             b.as_str(),
                             CurveMessage::InputColorB,
+                        )
+                        .width(Length::Units(50)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .align_items(Alignment::Center)
+                    .spacing(10)
+                    .push(
+                        Slider::new(
+                            &mut self.slider_color_a,
+                            0.0..=1.0,
+                            color.a,
+                            CurveMessage::SlideColorA,
+                        )
+                        .step(0.01),
+                    )
+                    .push(
+                        text_input::TextInput::new(
+                            &mut self.input_color_a,
+                            "a",
+                            a.as_str(),
+                            CurveMessage::InputColorA,
                         )
                         .width(Length::Units(50)),
                     ),
@@ -764,6 +805,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
             }
         }
 
+        //不返回事件的时候也需要重绘画布
         self.cache.clear();
 
         (event::Status::Ignored, None)
