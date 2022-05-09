@@ -107,6 +107,12 @@ enum Ps {
     Loaded(Box<State>),
 }
 
+// assert_eq!(
+//     PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
+//     parent.to_path_buf()
+// );
+// (Ps::Loaded(Box::new(State::default())), Command::none())
+
 impl Application for Ps {
     type Executor = iced::executor::Default;
     type Message = Message;
@@ -121,10 +127,6 @@ impl Application for Ps {
             _ => {
                 if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
                     if let Some(parent) = path.parent() {
-                        // assert_eq!(
-                        //     PathBuf::from("C:\\Users\\86362\\AppData\\Local\\Ps\\"),
-                        //     parent.to_path_buf()
-                        // );
                         Command::perform(
                             last_place::load_state(parent.to_path_buf()),
                             Message::StateRestored,
@@ -135,7 +137,6 @@ impl Application for Ps {
                 } else {
                     Command::none()
                 }
-                // (Ps::Loaded(Box::new(State::default())), Command::none())
             }
         };
         (Ps::Loading, command)

@@ -118,7 +118,7 @@ pub struct Curve {
     #[serde_as(as = "SerdeColor")]
     pub(crate) color: Color,
     pub(crate) width: f32,
-    pub(crate) line_cap: EqLineCap,//这里其实应该叫Fmt~，因为使用这个类型的原因主要是要能够转化成字符串，用于svg设置样式，而序列化只需要引入这个类型就够了
+    pub(crate) line_cap: EqLineCap, //这里其实应该叫Fmt~，因为使用这个类型的原因主要是要能够转化成字符串，用于svg设置样式，而序列化只需要引入这个类型就够了
     pub(crate) line_join: EqLineJoin,
     pub(crate) segments: Vec<f32>,
     pub(crate) offset: usize,
@@ -334,6 +334,7 @@ impl Edit {
                 if let (Some(curve), _) = self.selected {
                     self.curves.remove(curve);
                     self.selected = (None, None);
+                    self.curve_to_select = None;
                 }
             }
             EditMessage::AddFromPending => {
@@ -844,6 +845,8 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         if cursor.is_over(&bounds) {
             if self.selected.0.is_some() && *self.ctrl_pressed {
                 mouse::Interaction::Grabbing
+            } else if self.curve_to_select.is_some() {
+                mouse::Interaction::Pointer
             } else {
                 mouse::Interaction::Crosshair
             }
