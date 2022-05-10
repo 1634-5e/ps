@@ -1,5 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
+use ps::ui::*;
+
 fn fibonacci(n: u64) -> u64 {
     match n {
         0 => 1,

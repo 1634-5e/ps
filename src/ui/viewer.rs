@@ -79,7 +79,7 @@ impl Viewer {
                         .push(Text::new("Not Found. Maybe Deleted."))
                         .push(
                             Button::new(&mut self.close_not_found, Text::new("Close"))
-                                .style(style::Button::Entry)
+                                .style(style::Button::Confirm)
                                 .on_press(ViewerMessage::CloseNotFound),
                         )
                 }

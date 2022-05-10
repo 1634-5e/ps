@@ -58,7 +58,7 @@ use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
 use iced::time::every;
 // use iced::time::every;
-use iced::{Application, Column, Length, Settings};
+use iced::{Application, Column, Container, Length, Settings};
 use iced::{Command, Element, Subscription};
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
@@ -144,6 +144,53 @@ impl Application for Ps {
 
     fn title(&self) -> String {
         String::from("Ps")
+    }
+    
+    fn view(&mut self) -> Element<Message> {
+        match self {
+            Ps::Loading => welcome(),
+            Ps::Loaded(state) => {
+                let (main_content, toolbar) = if state.is_editing {
+                    (
+                        state.edit.view().map(Message::Edit),
+                        state.toolbar.editing().map(Message::Toolbar),
+                    )
+                } else {
+                    (
+                        state.viewer.view().map(Message::Viewer),
+                        state.toolbar.viewing().map(Message::Toolbar),
+                    )
+                };
+                Container::new(
+                    Column::new()
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .push(toolbar)
+                        .push(main_content),
+                )
+                .style(style::Container)
+                .into()
+            }
+        }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        match self {
+            Ps::Loading => Subscription::none(),
+            Ps::Loaded(state) => {
+                //trait object即使能序列化在程序关闭之后也没法反序列化，因此放弃last_place
+                let auto_save = if state.edit.dirty && !state.is_saving {
+                    every(std::time::Duration::from_secs(2)).map(|_| Message::AutoSave)
+                } else {
+                    Subscription::none()
+                };
+
+                Subscription::batch(vec![
+                    iced_native::subscription::events().map(Message::ExternEvent),
+                    auto_save,
+                ])
+            }
+        }
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
@@ -293,50 +340,6 @@ impl Application for Ps {
             },
         }
         Command::none()
-    }
-
-    fn view(&mut self) -> Element<Message> {
-        match self {
-            Ps::Loading => welcome(),
-            Ps::Loaded(state) => {
-                let (main_content, toolbar) = if state.is_editing {
-                    (
-                        state.edit.view().map(Message::Edit),
-                        state.toolbar.editing().map(Message::Toolbar),
-                    )
-                } else {
-                    (
-                        state.viewer.view().map(Message::Viewer),
-                        state.toolbar.viewing().map(Message::Toolbar),
-                    )
-                };
-                Column::new()
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .push(toolbar)
-                    .push(main_content)
-                    .into()
-            }
-        }
-    }
-
-    fn subscription(&self) -> Subscription<Message> {
-        match self {
-            Ps::Loading => Subscription::none(),
-            Ps::Loaded(state) => {
-                //trait object即使能序列化在程序关闭之后也没法反序列化，因此放弃last_place
-                let auto_save = if state.edit.dirty && !state.is_saving {
-                    every(std::time::Duration::from_secs(2)).map(|_| Message::AutoSave)
-                } else {
-                    Subscription::none()
-                };
-
-                Subscription::batch(vec![
-                    iced_native::subscription::events().map(Message::ExternEvent),
-                    auto_save,
-                ])
-            }
-        }
     }
 }
 

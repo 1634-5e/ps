@@ -49,24 +49,21 @@ impl Toolbar {
                 &mut self.back,
                 icons::check(),
                 "back",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Back),
-            ))
-            .push(button(
-                &mut self.clear_canvas,
-                icons::delete(),
-                "clear",
-                Some(ToolbarMessage::Edit(EditMessage::Clear)),
             ))
             .push(button(
                 &mut self.save,
                 icons::save(),
                 "export",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Export),
             ))
             .push(button(
                 &mut self.line,
                 icons::rectangle(),
                 "line",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     Line::default(),
                 )))),
@@ -74,7 +71,8 @@ impl Toolbar {
             .push(button(
                 &mut self.rectangle,
                 icons::rectangle(),
-                "rectangle",
+                "rect",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     Rectangle::default(),
                 )))),
@@ -83,6 +81,7 @@ impl Toolbar {
                 &mut self.triangle,
                 icons::triangle(),
                 "triangle",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     Triangle::default(),
                 )))),
@@ -91,6 +90,7 @@ impl Toolbar {
                 &mut self.circle,
                 icons::triangle(),
                 "circle",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     Circle::default(),
                 )))),
@@ -99,9 +99,17 @@ impl Toolbar {
                 &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
                 "Bezier",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
                     QuadraticBezier::default(),
                 )))),
+            ))
+            .push(button(
+                &mut self.clear_canvas,
+                icons::delete(),
+                "clear",
+                style::Button::Delete,
+                Some(ToolbarMessage::Edit(EditMessage::Clear)),
             ))
             .into()
     }
@@ -115,24 +123,28 @@ impl Toolbar {
                 &mut self.open,
                 icons::load(),
                 "open",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Open),
             ))
             .push(button(
                 &mut self.close,
                 icons::delete(),
                 "close",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::Close),
             ))
             .push(button(
                 &mut self.clear_images,
                 icons::delete(),
                 "clear",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::ClearImages),
             ))
             .push(button(
                 &mut self.new,
                 icons::duplicate(),
-                "new",
+                "edit",
+                style::Button::Toolbar,
                 Some(ToolbarMessage::New),
             ))
             .into()
@@ -143,17 +155,19 @@ fn button<'a>(
     state: &'a mut button::State,
     icon: Text,
     text: &str,
+    style: style::Button,
     message: Option<ToolbarMessage>,
 ) -> Button<'a, ToolbarMessage> {
     let button = Button::new(
         state,
         Column::new()
             .align_items(Alignment::Center)
-            .spacing(5)
             .push(icon)
             .push(Text::new(text)),
     )
-    .style(style::Button::Toolbar);
+    .style(style)
+    .width(Length::Units(70))
+    .height(Length::Units(50));
     if let Some(m) = message {
         button.on_press(m)
     } else {

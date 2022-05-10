@@ -30,6 +30,7 @@ pub trait Shape:
     fn is_empty(&self) -> bool;
     fn is_complete(&self) -> bool;
     fn points(&self) -> HashMap<String, Point>;
+    fn attributes(&self) -> HashMap<String, f32>;
 
     //manipulation
     fn update(&mut self, message: ShapeMessage);
@@ -37,7 +38,7 @@ pub trait Shape:
     //drawing
     fn preview(&self, cursor_position: Point) -> Option<Path>;
     fn draw(&self, selected: bool) -> (Option<Path>, Option<Path>);
-    fn save(&self) -> Option<Data>;
+    fn export_as_svg(&self) -> Option<Data>;
 }
 
 impl Clone for Box<dyn Shape> {
@@ -80,6 +81,15 @@ impl Shape for Line {
         }
 
         points
+    }
+    fn attributes(&self) -> HashMap<String, f32> {
+        let mut attrs = HashMap::new();
+
+        if let (Some(from), Some(to)) = (self.from, self.to) {
+            attrs.insert(String::from("Length"), from.distance(to));
+        }
+
+        attrs
     }
 
     fn update(&mut self, message: ShapeMessage) {
@@ -171,7 +181,7 @@ impl Shape for Line {
             (None, None)
         }
     }
-    fn save(&self) -> Option<Data> {
+    fn export_as_svg(&self) -> Option<Data> {
         if let (Some(Point { x: x1, y: y1 }), Some(Point { x: x2, y: y2 })) = (self.from, self.to) {
             {
                 Some(Data::new().move_to((x1, y1)).line_to((x2, y2)))
@@ -230,6 +240,16 @@ impl Shape for Rectangle {
         }
 
         points
+    }
+    fn attributes(&self) -> HashMap<String, f32> {
+        let mut attrs = HashMap::new();
+
+        if let Some(size) = self.size {
+            attrs.insert(String::from("width"), size.width);
+            attrs.insert(String::from("height"), size.height);
+        }
+
+        attrs
     }
 
     fn update(&mut self, message: ShapeMessage) {
@@ -335,7 +355,7 @@ impl Shape for Rectangle {
             (None, None)
         }
     }
-    fn save(&self) -> Option<Data> {
+    fn export_as_svg(&self) -> Option<Data> {
         if let (Some(top_left), Some(size)) = (self.top_left, self.size) {
             let data = Data::new();
             let (x1, y1) = (top_left.x, top_left.y);
@@ -387,6 +407,9 @@ impl Shape for Triangle {
         }
 
         points
+    }
+    fn attributes(&self) -> HashMap<String, f32> {
+        HashMap::new()
     }
 
     fn update(&mut self, message: ShapeMessage) {
@@ -510,7 +533,7 @@ impl Shape for Triangle {
             (None, None)
         }
     }
-    fn save(&self) -> Option<Data> {
+    fn export_as_svg(&self) -> Option<Data> {
         let points = self.points();
         if self.is_complete() {
             let data =
@@ -565,6 +588,9 @@ impl Shape for QuadraticBezier {
         }
 
         points
+    }
+    fn attributes(&self) -> HashMap<String, f32> {
+        HashMap::new()
     }
 
     fn update(&mut self, message: ShapeMessage) {
@@ -689,7 +715,7 @@ impl Shape for QuadraticBezier {
             (None, None)
         }
     }
-    fn save(&self) -> Option<Data> {
+    fn export_as_svg(&self) -> Option<Data> {
         if let (Some(a), Some(b), Some(control)) = (self.a, self.b, self.control) {
             Some(
                 Data::new()
@@ -727,14 +753,14 @@ impl Shape for Circle {
                     String::from("up"),
                     Point {
                         x: center.x,
-                        y: center.y + r,
+                        y: center.y - r,
                     },
                 );
                 points.insert(
                     String::from("down"),
                     Point {
                         x: center.x,
-                        y: center.y - r,
+                        y: center.y + r,
                     },
                 );
                 points.insert(
@@ -756,6 +782,15 @@ impl Shape for Circle {
 
         points
     }
+    fn attributes(&self) -> HashMap<String, f32> {
+        let mut attrs = HashMap::new();
+
+        if let Some(radius) = self.radius {
+            attrs.insert(String::from("radius"), radius);
+        }
+
+        attrs
+    }
 
     fn update(&mut self, message: ShapeMessage) {
         match message {
@@ -774,17 +809,11 @@ impl Shape for Circle {
                 }
                 s => if let (Some(center), Some(radius)) = (&mut self.center, &mut self.radius) {
                     match s {
-                        "up" => {
-                                *radius = (point.y - center.y).abs();
+                        "up" | "down"=> {
+                            *radius = (point.y - center.y).abs();
                         }
-                        "down" => {
-                            *radius = (center.y - point.y).abs();
-                        }
-                        "left" => {
+                        "left" | "right" => {
                             *radius = (center.x - point.x).abs();
-                        }
-                        "right" => {
-                            *radius = (point.x - center.x).abs();
                         }
                         _ => {}
                     }
@@ -852,7 +881,7 @@ impl Shape for Circle {
             (None, None)
         }
     }
-    fn save(&self) -> Option<Data> {
+    fn export_as_svg(&self) -> Option<Data> {
         if let (Some(center), Some(radius)) = (self.center, self.radius) {
             Some(
                 Data::new()

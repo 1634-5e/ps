@@ -20,6 +20,7 @@ use svg::Document;
 
 use super::{
     shape::*,
+    style,
     utils::{get_format_color, is_valid_rgb, SerdeColor},
 };
 use crate::io::dialogs::save as save_file;
@@ -244,7 +245,7 @@ impl Curve {
     #[inline(always)]
     pub fn save(&self) -> Option<SvgPath> {
         //小写大写貌似不区分
-        let data = self.shape.save()?;
+        let data = self.shape.export_as_svg()?;
         Some(
             SvgPath::new()
                 .set("fill", "none")
@@ -364,6 +365,7 @@ impl Edit {
     pub fn view(&mut self) -> Element<EditMessage> {
         let (
             points,
+            attrs,
             Curve {
                 color,
                 width,
@@ -374,14 +376,20 @@ impl Edit {
                 ..
             },
             edit_title,
-        ) = if let (Some(curve), _) = self.selected {
+        ) = if let (Some(index), _) = self.selected {
             (
-                self.curves[curve].shape.points(),
-                &self.curves[curve],
+                self.curves[index].shape.points(),
+                self.curves[index].shape.attributes(),
+                &self.curves[index],
                 "Selected curve",
             )
         } else {
-            (self.pending.shape.points(), &self.pending, "Creating")
+            (
+                self.pending.shape.points(),
+                self.pending.shape.attributes(),
+                &self.pending,
+                "Creating",
+            )
         };
 
         let (r, g, b, a) = (
@@ -395,6 +403,8 @@ impl Edit {
         //排序points防止顺序一直变化
         let mut points = points.into_iter().collect::<Vec<(String, Point)>>();
         points.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let mut attrs = attrs.into_iter().collect::<Vec<(String, f32)>>();
+        attrs.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         let mut editable = Column::new()
             .width(Length::FillPortion(2))
@@ -407,12 +417,15 @@ impl Edit {
                 .align_items(Alignment::Center)
                 .spacing(10)
                 .push(Text::new("Index:"))
-                .push(PickList::new(
-                    &mut self.pick_curve,
-                    (0..self.curves.len()).collect::<Vec<usize>>(),
-                    self.selected.0,
-                    CurveMessage::CurveSelected,
-                )),
+                .push(
+                    PickList::new(
+                        &mut self.pick_curve,
+                        (0..self.curves.len()).collect::<Vec<usize>>(),
+                        self.selected.0,
+                        CurveMessage::CurveSelected,
+                    )
+                    .style(style::PickList),
+                ),
         );
 
         editable = points.into_iter().fold(editable, |acc, (index, p)| {
@@ -421,6 +434,15 @@ impl Edit {
                     .align_items(Alignment::Center)
                     .spacing(10)
                     .push(Text::new(format!("{:?}: ({:.2},{:.2})", index, p.x, p.y))),
+            )
+        });
+
+        editable = attrs.into_iter().fold(editable, |acc, (index, attr)| {
+            acc.push(
+                Row::new()
+                    .align_items(Alignment::Center)
+                    .spacing(10)
+                    .push(Text::new(format!("{:?}: {:.2}", index, attr))),
             )
         });
 
@@ -453,6 +475,7 @@ impl Edit {
                             r.as_str(),
                             CurveMessage::InputColorR,
                         )
+                        .style(style::TextInput::EditAttribute)
                         .width(Length::Units(50)),
                     ),
             )
@@ -476,6 +499,7 @@ impl Edit {
                             g.as_str(),
                             CurveMessage::InputColorG,
                         )
+                        .style(style::TextInput::EditAttribute)
                         .width(Length::Units(50)),
                     ),
             )
@@ -499,6 +523,7 @@ impl Edit {
                             b.as_str(),
                             CurveMessage::InputColorB,
                         )
+                        .style(style::TextInput::EditAttribute)
                         .width(Length::Units(50)),
                     ),
             )
@@ -522,6 +547,7 @@ impl Edit {
                             a.as_str(),
                             CurveMessage::InputColorA,
                         )
+                        .style(style::TextInput::EditAttribute)
                         .width(Length::Units(50)),
                     ),
             )
@@ -537,6 +563,7 @@ impl Edit {
                             width.as_str(),
                             CurveMessage::InputWidth,
                         )
+                        .style(style::TextInput::EditAttribute)
                         .width(Length::Units(50)),
                     ),
             )
@@ -545,24 +572,30 @@ impl Edit {
                     .align_items(Alignment::Center)
                     .spacing(10)
                     .push(Text::new("Line Cap:  "))
-                    .push(PickList::new(
-                        &mut self.pick_line_cap,
-                        vec![EqLineCap::Butt, EqLineCap::Round, EqLineCap::Square],
-                        Some(*line_cap),
-                        CurveMessage::LineCapSelected,
-                    )),
+                    .push(
+                        PickList::new(
+                            &mut self.pick_line_cap,
+                            vec![EqLineCap::Butt, EqLineCap::Round, EqLineCap::Square],
+                            Some(*line_cap),
+                            CurveMessage::LineCapSelected,
+                        )
+                        .style(style::PickList),
+                    ),
             )
             .push(
                 Row::new()
                     .align_items(Alignment::Center)
                     .spacing(10)
                     .push(Text::new("Line Join:  "))
-                    .push(PickList::new(
-                        &mut self.pick_line_join,
-                        vec![EqLineJoin::Miter, EqLineJoin::Round, EqLineJoin::Bevel],
-                        Some(*line_join),
-                        CurveMessage::LineJoinSelected,
-                    )),
+                    .push(
+                        PickList::new(
+                            &mut self.pick_line_join,
+                            vec![EqLineJoin::Miter, EqLineJoin::Round, EqLineJoin::Bevel],
+                            Some(*line_join),
+                            CurveMessage::LineJoinSelected,
+                        )
+                        .style(style::PickList),
+                    ),
             );
 
         let canvas = Row::new()
