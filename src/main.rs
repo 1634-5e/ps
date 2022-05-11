@@ -1,7 +1,7 @@
+#![windows_subsystem = "windows"]
 // #![allow(unused)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
-#![windows_subsystem = "windows"]
 #![feature(let_chains)]
 #[allow(clippy::collapsible_match)]
 #[allow(clippy::single_match)]
