@@ -13,10 +13,11 @@ opt-level = "z"
 
 [dependencies]
 iced = { git = "https://github.com/iced-rs/iced", features = [
-    "image",
+    "iced_glow",
     "debug",
-    "tokio",
+    "image",
     "svg",
+    "tokio",
     "canvas",
 ] }
 iced_native = { git = "https://github.com/iced-rs/iced" }

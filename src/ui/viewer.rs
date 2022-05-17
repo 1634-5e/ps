@@ -4,7 +4,7 @@ use iced::{button, Alignment, Button, Column, Container, Element, Image, Length,
 
 use super::style;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ViewerMessage {
     ImageLoaded((Vec<PathBuf>, Option<usize>)),
     Navigate(i32),
@@ -45,7 +45,9 @@ impl Viewer {
             ViewerMessage::Navigate(i) => self.navigate(i),
             ViewerMessage::JumpToImage(index) => {
                 if let Some(on_view) = &mut self.on_view {
-                    *on_view = index;
+                    if index < self.images.len() {
+                        *on_view = index;
+                    }
                 }
                 self.update_preview();
             }

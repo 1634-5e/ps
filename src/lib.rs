@@ -1,3 +1,5 @@
+//这部分只是为了测试，直接复制了一份main.rs
+
 #![windows_subsystem = "windows"]
 // #![allow(unused)]
 #![feature(associated_type_bounds)]
@@ -5,29 +7,6 @@
 #![feature(let_chains)]
 #[allow(clippy::collapsible_match)]
 #[allow(clippy::single_match)]
-
-//暂时放下用户设置部分
-
-pub fn main() -> iced::Result {
-    //处理拖拽事件,第一个值是程序的路径（可能是相对路径，也可能是绝对路径），后面的应该全是被拖拽文件（夹）的路径
-    let env_args: Vec<PathBuf> = env::args().map(PathBuf::from).collect();
-    // let user_settings = Rc::new(RefCell::new(UserSettings {
-    //     automatic_load: true,
-    // })); //恢复用户设置，目前没做
-
-    Ps::run(Settings {
-        flags: Flags {
-            env_args,
-            // user_settings,
-        },
-        antialiasing: true,
-        window: window::Settings {
-            position: window::Position::Specific(200, 20),
-            ..window::Settings::default()
-        },
-        ..Settings::default()
-    })
-}
 
 mod io {
     pub mod dialogs;
@@ -37,7 +16,7 @@ mod io {
     pub use last_place::*;
 }
 
-mod ui {
+pub mod ui {
     pub mod edit;
     mod icons;
     pub mod shape;
@@ -54,16 +33,15 @@ mod ui {
     pub use toolbar::*;
     pub use viewer::*;
     pub use welcome::welcome;
+    pub use curve::*;
 }
-
-use std::env;
 
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
 use iced::time::every;
 // use iced::time::every;
-use iced::{window, Application, Column, Container, Length, Settings};
+use iced::{Application, Column, Container, Length};
 use iced::{Command, Element, Subscription};
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
@@ -89,7 +67,7 @@ use ui::*;
 #[derive(Debug, Default)]
 pub struct State {
     viewer: Viewer,
-    edit: Edit,
+    pub edit: Edit,
     toolbar: Toolbar,
     is_editing: bool,
     is_saving: bool,
@@ -107,7 +85,7 @@ pub enum Message {
 }
 
 #[derive(Debug)]
-enum Ps {
+pub enum Ps {
     Loading,
     Loaded(Box<State>),
 }
@@ -345,6 +323,15 @@ impl Application for Ps {
             },
         }
         Command::none()
+    }
+
+    // 让程序在启动之后立即退出
+    fn should_exit(&self) -> bool {
+        if let Ps::Loaded(_) = self {
+            true
+        } else {
+            false
+        }
     }
 }
 

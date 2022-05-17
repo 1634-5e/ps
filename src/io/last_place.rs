@@ -7,7 +7,7 @@ use iced::{Color, Point, Size};
 use json::JsonValue;
 use serde::{Deserialize, Serialize};
 
-use crate::ui::{shape::*, Curve, EqLineCap, EqLineJoin};
+use crate::ui::{shape::*, curve::*};
 
 const FILE_NAME: &str = "last_place";
 
