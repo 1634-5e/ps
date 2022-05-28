@@ -112,7 +112,6 @@ pub struct Curve {
 
 impl Default for Curve {
     fn default() -> Self {
-        let line_dash = LineDash::default();
         Curve {
             shape: Box::new(Line::default()),
             color: Color::BLACK,
