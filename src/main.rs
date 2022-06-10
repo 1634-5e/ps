@@ -347,6 +347,3 @@ impl Application for Ps {
         Command::none()
     }
 }
-
-//用于响应外部事件，并传递到本地事件
-// async fn do_nothing() {}
