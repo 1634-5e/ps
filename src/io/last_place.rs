@@ -1,6 +1,5 @@
 use std::{fs, fs::File, io::BufReader, path::PathBuf};
 
-use iced::{Point, Size};
 use serde::{Deserialize, Serialize};
 
 use crate::ui::curve::*;
@@ -39,6 +38,7 @@ pub async fn load_state(path: PathBuf) -> std::io::Result<Option<SavedState>> {
     Ok(deserde)
 }
 
+//废弃代码，现在不需要手动执行
 // pub async fn load_state(path: PathBuf) -> std::io::Result<Option<SavedState>> {
 //     let mut res = SavedState::default();
 

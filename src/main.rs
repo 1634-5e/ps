@@ -1,5 +1,5 @@
 #![windows_subsystem = "windows"]
-#![allow(unused)]
+// #![allow(unused)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![feature(let_chains)]
@@ -49,8 +49,6 @@ mod ui {
     pub mod welcome;
 
     pub use edit::*;
-    pub use shape::*;
-    pub use style::*;
     pub use toolbar::*;
     pub use viewer::*;
     pub use welcome::*;
@@ -61,10 +59,12 @@ use std::env;
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
+use iced::pure::widget::{Container, Column};
 use iced::time::every;
 // use iced::time::every;
-use iced::{window, Application, Column, Container, Length, Settings};
-use iced::{Command, Element, Subscription};
+use iced::pure::{Application, Element};
+use iced::{Command, Subscription};
+use iced::{window, Length, Settings};
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
@@ -109,7 +109,7 @@ pub enum Message {
 #[derive(Debug)]
 enum Ps {
     Loading,
-    Loaded(Box<State>),
+    Loaded(State),
 }
 
 // assert_eq!(
@@ -151,7 +151,7 @@ impl Application for Ps {
         String::from("Ps")
     }
 
-    fn view(&mut self) -> Element<Message> {
+    fn view(&self) -> Element<Message> {
         match self {
             Ps::Loading => welcome(),
             Ps::Loaded(state) => {
@@ -209,7 +209,7 @@ impl Application for Ps {
                             on_view,
                             curves,
                         } = state;
-                        *self = Ps::Loaded(Box::new(State {
+                        *self = Ps::Loaded(State {
                             viewer: Viewer {
                                 images,
                                 on_view,
@@ -218,13 +218,16 @@ impl Application for Ps {
                             edit: Edit::new(curves),
                             is_editing,
                             ..State::default()
-                        }));
+                        });
                     } else {
-                        *self = Ps::Loaded(Box::new(State::default()));
+                        //FIXME:
+                        //如果文件存在，但是解析失败，则很难将文件修改到正确的格式（意味着之前的数据丢失）
+                        //这一现象的原因是改变了数据结构，因此后面可能需要考虑版本之间的兼容性
+                        *self = Ps::Loaded(State::default());
                     }
                 }
                 Message::Viewer(ViewerMessage::ImageLoaded(data)) => {
-                    *self = Ps::Loaded(Box::new(State::default()));
+                    *self = Ps::Loaded(State::default());
                     if let Ps::Loaded(state) = self {
                         state.viewer.update(ViewerMessage::ImageLoaded(data));
                     }

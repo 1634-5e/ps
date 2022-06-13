@@ -24,7 +24,7 @@ pub enum ShapeMessage {
 }
 
 #[enum_dispatch]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ShapeEnum {
     Line,
     Rectangle,
@@ -57,7 +57,7 @@ pub trait Shape: Send + Debug {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Line {
     #[serde_as(as = "Option<SerdePoint>")]
     pub(crate) from: Option<Point>,
@@ -196,7 +196,7 @@ impl Shape for Line {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Rectangle {
     #[serde_as(as = "Option<SerdePoint>")]
     pub(crate) top_left: Option<Point>,
@@ -377,7 +377,7 @@ impl Shape for Rectangle {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Triangle {
     #[serde_as(as = "Option<SerdePoint>")]
     pub(crate) a: Option<Point>,
@@ -558,7 +558,7 @@ impl Shape for Triangle {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct QuadraticBezier {
     #[serde_as(as = "Option<SerdePoint>")]
     pub(crate) a: Option<Point>,
@@ -732,7 +732,7 @@ impl Shape for QuadraticBezier {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Circle {
     #[serde_as(as = "Option<SerdePoint>")]
     pub(crate) center: Option<Point>,

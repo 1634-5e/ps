@@ -8,7 +8,10 @@ use svg::node::element::Path as SvgPath;
 
 use std::fmt::Display;
 
-use super::{EditMessage, Line, Shape, ShapeEnum, ShapeMessage};
+use super::{
+    shape::{Line, Shape, ShapeEnum, ShapeMessage},
+    EditMessage,
+};
 use crate::utils::{get_format_color, is_valid_rgb, SerdeColor};
 
 #[derive(Debug, Clone)]
@@ -179,7 +182,7 @@ impl Curve {
             }
             CurveMessage::LineCapSelected(lc) => self.line_cap = lc,
             CurveMessage::LineJoinSelected(lj) => self.line_join = lj,
-            CurveMessage::CurveSelected(index) => return Some(EditMessage::CurveSelected(index)),
+            CurveMessage::CurveSelected(index) => return Some(EditMessage::CurveSelected(Some(index))),
         }
         None
     }

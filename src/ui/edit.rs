@@ -1,23 +1,27 @@
-use iced::{
-    canvas::event::{self, Event},
-    canvas::{self, Canvas as IcedCanvas, Cursor, Frame, Geometry, Path, Stroke},
-    keyboard::{self, KeyCode, Modifiers},
-    mouse, pick_list, slider, text_input, Alignment, Column, Element, Length, PickList, Point,
-    Rectangle as IcedRectangle, Row, Slider, Space, Text,
+use iced::canvas::{event, Cursor, Event, Frame, Geometry, Path, Stroke};
+use iced::keyboard::{KeyCode, Modifiers};
+use iced::pure::widget::{
+    canvas, canvas::Canvas as IcedCanvas, text_input, Column, PickList, Row, Slider, Space, Text,
 };
+use iced::pure::Element;
+use iced::{keyboard, mouse, Alignment, Length, Point, Rectangle as IcedRectangle};
 
 use svg::Document;
 
-use super::shape::*;
-use super::{curve::*, style};
+use super::{
+    curve::*,
+    shape::{Shape, ShapeEnum, ShapeMessage},
+    style,
+};
 use crate::io::dialogs::save as save_file;
 
 #[derive(Debug, Clone)]
 pub enum EditMessage {
+    AddWithClick(Point),
     AddFromPending,
     Curve(CurveMessage),
     ChangeShape(ShapeEnum),
-    CurveSelected(usize),
+    CurveSelected(Option<usize>),
     CurvePasted(Point),
     Clear,
     RemoveCurve,
@@ -25,36 +29,12 @@ pub enum EditMessage {
 
 #[derive(Debug, Default)]
 pub struct Edit {
-    pending: Curve,
     pub curves: Vec<Curve>,
-
-    pub dirty: bool,
-
-    pub copied_curve: Option<Curve>,           //用于复制粘贴
-    selected: (Option<usize>, Option<String>), //（curves下标，points下标
-    curve_to_select: Option<usize>,
-
-    pressed_point: Option<Point>,
-
-    ctrl_pressed: bool,
-
+    pending: Curve,
+    pub copied_curve: Option<Curve>,
+    selected: (Option<usize>, Option<String>),
     cache: canvas::Cache, //缓存
-
-    pick_curve: pick_list::State<usize>,
-
-    input_color_r: text_input::State,
-    input_color_g: text_input::State,
-    input_color_b: text_input::State,
-    input_color_a: text_input::State,
-    input_width: text_input::State,
-
-    slider_color_r: slider::State,
-    slider_color_g: slider::State,
-    slider_color_b: slider::State,
-    slider_color_a: slider::State,
-
-    pick_line_cap: pick_list::State<EqLineCap>,
-    pick_line_join: pick_list::State<EqLineJoin>,
+    pub dirty: bool,
 }
 
 impl Edit {
@@ -76,6 +56,12 @@ impl Edit {
                     self.update(new_message);
                 }
             }
+            EditMessage::AddWithClick(cursor_position) => {
+                self.selected = (None, None);
+                self.pending
+                    .shape
+                    .update(ShapeMessage::Labor(cursor_position));
+            }
             EditMessage::ChangeShape(s) => {
                 if self.pending.shape.is_empty() {
                     self.pending.shape = s;
@@ -89,7 +75,6 @@ impl Edit {
                 if let (Some(curve), _) = self.selected {
                     self.curves.remove(curve);
                     self.selected = (None, None);
-                    self.curve_to_select = None;
                 }
             }
             EditMessage::AddFromPending => {
@@ -105,7 +90,7 @@ impl Edit {
                 }
             }
             EditMessage::CurveSelected(index) => {
-                if index < self.curves.len() {
+                if let Some(index) = index &&index < self.curves.len() {
                     self.selected.0 = Some(index)
                 }
             }
@@ -120,7 +105,7 @@ impl Edit {
         self.redraw();
     }
 
-    pub fn view(&mut self) -> Element<EditMessage> {
+    fn editable(&self) -> Element<CurveMessage> {
         let (
             points,
             attrs,
@@ -177,7 +162,6 @@ impl Edit {
                 .push(Text::new("Index:"))
                 .push(
                     PickList::new(
-                        &mut self.pick_curve,
                         (0..self.curves.len()).collect::<Vec<usize>>(),
                         self.selected.0,
                         CurveMessage::CurveSelected,
@@ -204,7 +188,7 @@ impl Edit {
             )
         });
 
-        editable = editable
+        editable
             // .push(
             //     Row::new()
             //         .align_items(Alignment::Center)
@@ -217,96 +201,44 @@ impl Edit {
                 Row::new()
                     .align_items(Alignment::Center)
                     .spacing(10)
+                    .push(Slider::new(0.0..=1.0, color.r, CurveMessage::SlideColorR).step(0.01))
                     .push(
-                        Slider::new(
-                            &mut self.slider_color_r,
-                            0.0..=1.0,
-                            color.r,
-                            CurveMessage::SlideColorR,
-                        )
-                        .step(0.01),
-                    )
-                    .push(
-                        text_input::TextInput::new(
-                            &mut self.input_color_r,
-                            "red",
-                            r.as_str(),
-                            CurveMessage::InputColorR,
-                        )
-                        .style(style::TextInput::EditAttribute)
-                        .width(Length::Units(50)),
+                        text_input::TextInput::new("red", r.as_str(), CurveMessage::InputColorR)
+                            .style(style::TextInput::EditAttribute)
+                            .width(Length::Units(50)),
                     ),
             )
             .push(
                 Row::new()
                     .align_items(Alignment::Center)
                     .spacing(10)
+                    .push(Slider::new(0.0..=1.0, color.g, CurveMessage::SlideColorG).step(0.01))
                     .push(
-                        Slider::new(
-                            &mut self.slider_color_g,
-                            0.0..=1.0,
-                            color.g,
-                            CurveMessage::SlideColorG,
-                        )
-                        .step(0.01),
-                    )
-                    .push(
-                        text_input::TextInput::new(
-                            &mut self.input_color_g,
-                            "green",
-                            g.as_str(),
-                            CurveMessage::InputColorG,
-                        )
-                        .style(style::TextInput::EditAttribute)
-                        .width(Length::Units(50)),
+                        text_input::TextInput::new("green", g.as_str(), CurveMessage::InputColorG)
+                            .style(style::TextInput::EditAttribute)
+                            .width(Length::Units(50)),
                     ),
             )
             .push(
                 Row::new()
                     .align_items(Alignment::Center)
                     .spacing(10)
+                    .push(Slider::new(0.0..=1.0, color.b, CurveMessage::SlideColorB).step(0.01))
                     .push(
-                        Slider::new(
-                            &mut self.slider_color_b,
-                            0.0..=1.0,
-                            color.b,
-                            CurveMessage::SlideColorB,
-                        )
-                        .step(0.01),
-                    )
-                    .push(
-                        text_input::TextInput::new(
-                            &mut self.input_color_b,
-                            "blue",
-                            b.as_str(),
-                            CurveMessage::InputColorB,
-                        )
-                        .style(style::TextInput::EditAttribute)
-                        .width(Length::Units(50)),
+                        text_input::TextInput::new("blue", b.as_str(), CurveMessage::InputColorB)
+                            .style(style::TextInput::EditAttribute)
+                            .width(Length::Units(50)),
                     ),
             )
             .push(
                 Row::new()
                     .align_items(Alignment::Center)
                     .spacing(10)
+                    .push(Slider::new(0.0..=1.0, color.a, CurveMessage::SlideColorA).step(0.01))
                     .push(
-                        Slider::new(
-                            &mut self.slider_color_a,
-                            0.0..=1.0,
-                            color.a,
-                            CurveMessage::SlideColorA,
-                        )
-                        .step(0.01),
-                    )
-                    .push(
-                        text_input::TextInput::new(
-                            &mut self.input_color_a,
-                            "a",
-                            a.as_str(),
-                            CurveMessage::InputColorA,
-                        )
-                        .style(style::TextInput::EditAttribute)
-                        .width(Length::Units(50)),
+                        text_input::TextInput::new("a", a.as_str(), CurveMessage::InputColorA)
+                            .style(style::TextInput::EditAttribute)
+                            .width(Length::Units(50)),
                     ),
             )
             .push(
@@ -316,7 +248,6 @@ impl Edit {
                     .push(Text::new("Width:  "))
                     .push(
                         text_input::TextInput::new(
-                            &mut self.input_width,
                             width.as_str(),
                             width.as_str(),
                             CurveMessage::InputWidth,
@@ -332,7 +263,6 @@ impl Edit {
                     .push(Text::new("Line Cap:  "))
                     .push(
                         PickList::new(
-                            &mut self.pick_line_cap,
                             vec![EqLineCap::Butt, EqLineCap::Round, EqLineCap::Square],
                             Some(*line_cap),
                             CurveMessage::LineCapSelected,
@@ -347,15 +277,17 @@ impl Edit {
                     .push(Text::new("Line Join:  "))
                     .push(
                         PickList::new(
-                            &mut self.pick_line_join,
                             vec![EqLineJoin::Miter, EqLineJoin::Round, EqLineJoin::Bevel],
                             Some(*line_join),
                             CurveMessage::LineJoinSelected,
                         )
                         .style(style::PickList),
                     ),
-            );
+            )
+            .into()
+    }
 
+    pub fn view(&self) -> Element<EditMessage> {
         let canvas = Row::new()
             .width(Length::FillPortion(7))
             .height(Length::Fill)
@@ -366,19 +298,10 @@ impl Edit {
                     .height(Length::Fill)
                     .push(Space::with_height(Length::Units(10)))
                     .push(
-                        IcedCanvas::new(DrawingBoard {
-                            pending: &mut self.pending,
+                        IcedCanvas::new(Pad {
+                            pending: &self.pending,
                             curves: &self.curves,
-
-                            copied_curve: &mut self.copied_curve,
-                            selected: &mut self.selected,
-                            curve_to_select: &mut self.curve_to_select,
-
-                            pressed_point: &mut self.pressed_point,
-
-                            ctrl_pressed: &mut self.ctrl_pressed,
-
-                            cache: &mut self.cache,
+                            cache: &self.cache, //缓存
                         })
                         .width(Length::Fill)
                         .height(Length::Fill),
@@ -392,7 +315,7 @@ impl Edit {
             .width(Length::Fill)
             .height(Length::Fill)
             .push(canvas)
-            .push((Element::<CurveMessage>::from(editable)).map(EditMessage::Curve))
+            .push(self.editable().map(EditMessage::Curve))
             .into()
     }
 
@@ -415,27 +338,29 @@ impl Edit {
     }
 }
 
-#[derive(Debug)]
-struct DrawingBoard<'a> {
-    pending: &'a mut Curve,
-    curves: &'a Vec<Curve>,
-
-    copied_curve: &'a mut Option<Curve>,
-    selected: &'a mut (Option<usize>, Option<String>), //（curves下标，points下标
-    curve_to_select: &'a mut Option<usize>,
-
-    pressed_point: &'a mut Option<Point>,
-
-    ctrl_pressed: &'a mut bool,
-
-    cache: &'a mut canvas::Cache,
+#[derive(Debug, Default)]
+pub struct Interaction {
+    pub copied_curve: Option<Curve>,
+    selected: (Option<usize>, Option<String>),
+    curve_to_select: Option<usize>,
+    pressed_point: Option<Point>,
+    ctrl_pressed: bool,
 }
 
-impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
+#[derive(Debug)]
+struct Pad<'a> {
+    pending: &'a Curve,
+    curves: &'a Vec<Curve>,
+    cache: &'a canvas::Cache, //缓存
+}
+
+impl<'a> canvas::Program<EditMessage> for Pad<'a> {
+    type State = Interaction;
     fn update(
-        &mut self,
+        &self,
+        state: &mut Self::State,
         event: Event,
-        bounds: IcedRectangle,
+        bounds: IcedRectangle<f32>,
         cursor: Cursor,
     ) -> (event::Status, Option<EditMessage>) {
         let cursor_position = if let Some(position) = cursor.position_in(&bounds) {
@@ -449,23 +374,18 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
             match event {
                 //记下按下的位置，如果按下和放开的位置距离过远，则不响应
                 Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                    *self.pressed_point = Some(cursor_position);
+                    state.pressed_point = Some(cursor_position);
                 }
                 Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                    if let Some(pressed) = self.pressed_point {
-                        if pressed.distance(cursor_position) < DrawingBoard::DETERMINANT_DISTANCE {
-                            self.pending
-                                .shape
-                                .update(ShapeMessage::Labor(cursor_position));
-                            if self.pending.shape.is_complete() {
-                                return (
-                                    event::Status::Captured,
-                                    Some(EditMessage::AddFromPending),
-                                );
-                            }
+                    if let Some(pressed) = state.pressed_point {
+                        if pressed.distance(cursor_position) < Pad::DETERMINANT_DISTANCE {
+                            return (
+                                event::Status::Captured,
+                                Some(EditMessage::AddWithClick(cursor_position)),
+                            );
                         }
                     }
-                    *self.pressed_point = None;
+                    state.pressed_point = None;
                 }
                 //按下esc放弃这次添加
                 Event::Keyboard(keyboard::Event::KeyPressed {
@@ -473,7 +393,10 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                     modifiers,
                 }) => {
                     if key_code == KeyCode::Escape && modifiers.is_empty() {
-                        self.pending.shape.update(ShapeMessage::Reset);
+                        return (
+                            event::Status::Captured,
+                            Some(EditMessage::Curve(CurveMessage::Shape(ShapeMessage::Reset))),
+                        );
                     }
                 }
                 _ => {}
@@ -483,9 +406,9 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                 Event::Mouse(mouse_event) => match mouse_event {
                     mouse::Event::CursorMoved { position: _ } => {
                         //查看是否有最近的点，意味着已经按下左键但未松开
-                        if self.pressed_point.is_some() {
-                            if let (Some(_), Some(point)) = self.selected {
-                                if *self.ctrl_pressed {
+                        if state.pressed_point.is_some() {
+                            if let (Some(_), Some(point)) = &state.selected {
+                                if state.ctrl_pressed {
                                     return (
                                         event::Status::Captured,
                                         Some(EditMessage::Curve(CurveMessage::Shape(
@@ -504,50 +427,45 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                         }
 
                         //如果离得远了就取消预览
-                        if let Some(to_select) = self.curve_to_select {
+                        if let Some(to_select) = state.curve_to_select {
                             let mut to_cancel = true;
-                            for (_, point) in self.curves[*to_select].shape.points() {
-                                if point.distance(cursor_position)
-                                    < DrawingBoard::DETERMINANT_DISTANCE
-                                {
+                            for (_, point) in self.curves[to_select].shape.points() {
+                                if point.distance(cursor_position) < Pad::DETERMINANT_DISTANCE {
                                     to_cancel = false;
                                 }
                             }
                             if to_cancel {
-                                *self.curve_to_select = None;
+                                state.curve_to_select = None;
                             }
                         }
 
                         //如果没有预览中的，则选择一个距离最近的curve
-                        if self.curve_to_select.is_none() {
-                            *self.curve_to_select = self.decide_which_curve(cursor_position).0;
+                        if state.curve_to_select.is_none() {
+                            state.curve_to_select = self.decide_which_curve(cursor_position).0;
                         }
                     }
                     mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                        *self.pressed_point = Some(cursor_position);
-                        *self.selected = self.decide_which_curve(cursor_position);
+                        state.pressed_point = Some(cursor_position);
+                        state.selected = self.decide_which_curve(cursor_position);
+                        return (
+                            event::Status::Captured,
+                            Some(EditMessage::CurveSelected(state.selected.0)),
+                        );
                     }
                     mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                        if let Some(pressed) = self.pressed_point {
-                            if pressed.distance(cursor_position)
-                                < DrawingBoard::DETERMINANT_DISTANCE
-                            {
-                                *self.selected = self.decide_which_curve(cursor_position);
+                        if let Some(pressed) = state.pressed_point {
+                            if pressed.distance(cursor_position) < Pad::DETERMINANT_DISTANCE {
+                                state.selected = self.decide_which_curve(cursor_position);
 
-                                if self.selected.0.is_none() {
-                                    self.pending
-                                        .shape
-                                        .update(ShapeMessage::Labor(cursor_position));
-                                    if self.pending.shape.is_complete() {
-                                        return (
-                                            event::Status::Captured,
-                                            Some(EditMessage::AddFromPending),
-                                        );
-                                    }
+                                if state.selected.0.is_none() {
+                                    return (
+                                        event::Status::Captured,
+                                        Some(EditMessage::AddWithClick(cursor_position)),
+                                    );
                                 }
                             }
                         }
-                        *self.pressed_point = None;
+                        state.pressed_point = None;
                     }
                     _ => {}
                 },
@@ -557,18 +475,18 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                         modifiers,
                     } => {
                         if key_code == KeyCode::LControl || key_code == KeyCode::RControl {
-                            *self.ctrl_pressed = true;
+                            state.ctrl_pressed = true;
                         }
 
                         if key_code == KeyCode::C && modifiers.contains(Modifiers::CTRL) {
-                            if let (Some(selected), _) = self.selected {
-                                *self.copied_curve = Some(self.curves[*selected].clone());
+                            if let (Some(selected), _) = state.selected {
+                                state.copied_curve = Some(self.curves[selected].clone());
                             }
                         }
 
                         if key_code == KeyCode::V
                             && modifiers.contains(Modifiers::CTRL)
-                            && self.copied_curve.is_some()
+                            && state.copied_curve.is_some()
                         {
                             return (
                                 event::Status::Captured,
@@ -578,9 +496,13 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
 
                         if key_code == KeyCode::Escape
                             && modifiers.is_empty()
-                            && (self.selected.0.is_some() || self.selected.1.is_some())
+                            && (state.selected.0.is_some() || state.selected.1.is_some())
                         {
-                            *self.selected = (None, None);
+                            state.selected = (None, None);
+                            return (
+                                event::Status::Captured,
+                                Some(EditMessage::CurveSelected(state.selected.0)),
+                            );
                         }
                     }
                     keyboard::Event::KeyReleased {
@@ -588,7 +510,7 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
                         modifiers,
                     } => {
                         if key_code == KeyCode::LControl || key_code == KeyCode::RControl {
-                            *self.ctrl_pressed = false;
+                            state.ctrl_pressed = false;
                         }
                         if key_code == KeyCode::Delete && modifiers.is_empty() {
                             return (event::Status::Captured, Some(EditMessage::RemoveCurve));
@@ -599,19 +521,21 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
             }
         }
 
-        //不返回事件的时候也需要重绘画布
-        self.cache.clear();
-
         (event::Status::Ignored, None)
     }
 
-    fn draw(&self, bounds: IcedRectangle, cursor: Cursor) -> Vec<Geometry> {
+    fn draw(
+        &self,
+        state: &Self::State,
+        bounds: IcedRectangle<f32>,
+        cursor: Cursor,
+    ) -> Vec<Geometry> {
         let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
             let mut select = vec![];
-            if let Some(ref selected) = self.selected.0 {
+            if let Some(ref selected) = state.selected.0 {
                 select.push(*selected);
             }
-            if let Some(ref to_select) = self.curve_to_select {
+            if let Some(ref to_select) = state.curve_to_select {
                 select.push(*to_select);
             }
 
@@ -632,11 +556,16 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
         vec![content]
     }
 
-    fn mouse_interaction(&self, bounds: IcedRectangle, cursor: Cursor) -> mouse::Interaction {
+    fn mouse_interaction(
+        &self,
+        state: &Self::State,
+        bounds: IcedRectangle<f32>,
+        cursor: Cursor,
+    ) -> mouse::Interaction {
         if cursor.is_over(&bounds) {
-            if self.selected.0.is_some() && *self.ctrl_pressed {
+            if state.selected.0.is_some() && state.ctrl_pressed {
                 mouse::Interaction::Grabbing
-            } else if self.curve_to_select.is_some() {
+            } else if state.curve_to_select.is_some() {
                 mouse::Interaction::Pointer
             } else {
                 mouse::Interaction::Crosshair
@@ -647,16 +576,16 @@ impl<'a> canvas::Program<EditMessage> for DrawingBoard<'a> {
     }
 }
 
-impl<'a> DrawingBoard<'a> {
+impl<'a> Pad<'a> {
     const DETERMINANT_DISTANCE: f32 = 10.0;
 
     fn decide_which_curve(&self, cursor_position: Point) -> (Option<usize>, Option<String>) {
         let mut res = (None, None);
-        let mut last_distance = DrawingBoard::DETERMINANT_DISTANCE;
+        let mut last_distance = Pad::DETERMINANT_DISTANCE;
         for (curves_index, curve) in self.curves.iter().enumerate() {
             for (points_index, point) in curve.shape.points() {
                 let distance = point.distance(cursor_position);
-                if distance < DrawingBoard::DETERMINANT_DISTANCE && distance < last_distance {
+                if distance < Pad::DETERMINANT_DISTANCE && distance < last_distance {
                     last_distance = distance;
                     res = (Some(curves_index), Some(points_index));
                 }

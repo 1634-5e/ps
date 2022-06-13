@@ -199,8 +199,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     if let Ps::Loaded(state) = &mut ps {
-        state.edit.copied_curve = Some(Curve {
-            shape: Box::new(Rectangle::default()),
+        state.edit.interaction.copied_curve = Some(Curve {
+            shape: Rectangle::default().into(),
             ..Curve::default()
         });
         ps.view();
@@ -222,9 +222,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     //选择矩形
     c.bench_function("select shape:rect", |b| {
         b.iter(|| {
-            ps.update(Message::Edit(EditMessage::ChangeShape(Box::new(
-                Rectangle::default(),
-            ))));
+            ps.update(Message::Edit(
+                EditMessage::ChangeShape(Rectangle::default().into()),
+            ));
             ps.view();
         })
     });
@@ -245,9 +245,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     //选择三角形
     c.bench_function("select shape:tria", |b| {
         b.iter(|| {
-            ps.update(Message::Edit(EditMessage::ChangeShape(Box::new(
-                Triangle::default(),
-            ))));
+            ps.update(Message::Edit(EditMessage::ChangeShape(
+                Triangle::default().into(),
+            )));
             ps.view();
         })
     });
@@ -271,9 +271,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     //选择贝塞尔
     c.bench_function("select bezier", |b| {
         b.iter(|| {
-            ps.update(Message::Edit(EditMessage::ChangeShape(Box::new(
-                QuadraticBezier::default(),
-            ))));
+            ps.update(Message::Edit(EditMessage::ChangeShape(
+                QuadraticBezier::default().into(),
+            )));
             ps.view();
         })
     });
@@ -297,9 +297,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     //选择圆形
     c.bench_function("select shape:circle", |b| {
         b.iter(|| {
-            ps.update(Message::Edit(EditMessage::ChangeShape(Box::new(
-                Rectangle::default(),
-            ))));
+            ps.update(Message::Edit(EditMessage::ChangeShape(
+                Rectangle::default().into(),
+            )));
             ps.view();
         })
     });

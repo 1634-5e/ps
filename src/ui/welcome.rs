@@ -1,4 +1,10 @@
-use iced::{Container, Element, Length, Text};
+use iced::{
+    pure::{
+        widget::{Container, Text},
+        Element,
+    },
+    Length,
+};
 
 use crate::Message;
 

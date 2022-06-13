@@ -1,4 +1,6 @@
-use iced::{button, Alignment, Button, Column, Element, Length, Row, Text};
+use iced::pure::widget::{Button, Column, Row, Text};
+use iced::pure::Element;
+use iced::{Alignment, Length};
 
 use super::icons;
 use super::shape::*;
@@ -20,47 +22,27 @@ pub enum ToolbarMessage {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct Toolbar {
-    //view
-    open: button::State,
-    close: button::State,
-    clear_images: button::State,
-    new: button::State,
-
-    //edit
-    back: button::State,
-    clear_canvas: button::State,
-    save: button::State,
-
-    line: button::State,
-    rectangle: button::State,
-    triangle: button::State,
-    quadratic_bezier: button::State,
-    circle: button::State,
-}
+pub struct Toolbar {}
 
 impl Toolbar {
-    pub fn editing(&mut self) -> Element<ToolbarMessage> {
+    pub fn editing(&self) -> Element<ToolbarMessage> {
         Row::new()
             .padding(20)
             .spacing(7)
             .height(Length::Units(100))
             .push(button(
-                &mut self.back,
                 icons::check(),
                 "back",
                 style::Button::Toolbar,
                 Some(ToolbarMessage::Back),
             ))
             .push(button(
-                &mut self.save,
                 icons::save(),
                 "export",
                 style::Button::Toolbar,
                 Some(ToolbarMessage::Export),
             ))
             .push(button(
-                &mut self.line,
                 icons::rectangle(),
                 "line",
                 style::Button::Toolbar,
@@ -69,7 +51,6 @@ impl Toolbar {
                 ))),
             ))
             .push(button(
-                &mut self.rectangle,
                 icons::rectangle(),
                 "rect",
                 style::Button::Toolbar,
@@ -78,7 +59,6 @@ impl Toolbar {
                 ))),
             ))
             .push(button(
-                &mut self.triangle,
                 icons::triangle(),
                 "triangle",
                 style::Button::Toolbar,
@@ -87,7 +67,6 @@ impl Toolbar {
                 ))),
             ))
             .push(button(
-                &mut self.circle,
                 icons::triangle(),
                 "circle",
                 style::Button::Toolbar,
@@ -96,7 +75,6 @@ impl Toolbar {
                 ))),
             ))
             .push(button(
-                &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
                 "Bezier",
                 style::Button::Toolbar,
@@ -105,7 +83,6 @@ impl Toolbar {
                 ))),
             ))
             .push(button(
-                &mut self.clear_canvas,
                 icons::delete(),
                 "clear",
                 style::Button::Delete,
@@ -114,34 +91,30 @@ impl Toolbar {
             .into()
     }
 
-    pub fn viewing(&mut self) -> Element<ToolbarMessage> {
+    pub fn viewing(&self) -> Element<ToolbarMessage> {
         Row::new()
             .padding(20)
             .spacing(7)
             .height(Length::Units(100))
             .push(button(
-                &mut self.open,
                 icons::load(),
                 "open",
                 style::Button::Toolbar,
                 Some(ToolbarMessage::Open),
             ))
             .push(button(
-                &mut self.close,
                 icons::delete(),
                 "close",
                 style::Button::Toolbar,
                 Some(ToolbarMessage::Close),
             ))
             .push(button(
-                &mut self.clear_images,
                 icons::delete(),
                 "clear",
                 style::Button::Toolbar,
                 Some(ToolbarMessage::ClearImages),
             ))
             .push(button(
-                &mut self.new,
                 icons::duplicate(),
                 "edit",
                 style::Button::Toolbar,
@@ -152,14 +125,12 @@ impl Toolbar {
 }
 
 fn button<'a>(
-    state: &'a mut button::State,
     icon: Text,
     text: &str,
     style: style::Button,
     message: Option<ToolbarMessage>,
-) -> Button<'a, ToolbarMessage> {
+) -> Button<ToolbarMessage> {
     let button = Button::new(
-        state,
         Column::new()
             .align_items(Alignment::Center)
             .push(icon)

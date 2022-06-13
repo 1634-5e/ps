@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
-use iced::{button, Alignment, Button, Column, Container, Element, Image, Length, Row, Svg, Text};
-
 use super::style;
+use iced::pure::Element;
+use iced::pure::widget::{Column, Row, Text, Container, Button, Image};
+use iced::{Alignment, Length, Svg};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ViewerMessage {
@@ -18,14 +19,11 @@ pub struct Viewer {
     pub images: Vec<PathBuf>,
     pub on_view: Option<usize>,
     pub on_preview: Option<(usize, usize)>,
-
-    pub previous: button::State,
-    pub next: button::State,
-    pub close_not_found: button::State,
-    pub preview_navigators: [button::State; 8],
 }
 
 impl Viewer {
+    const PREVIEW_NAVIGATORS_NUM: usize = 8;
+    
     pub fn update(&mut self, message: ViewerMessage) {
         match message {
             ViewerMessage::ImageLoaded((mut images, on_view)) => {
@@ -54,13 +52,13 @@ impl Viewer {
         }
     }
 
-    pub fn view(&mut self) -> Element<ViewerMessage> {
+    pub fn view(&self) -> Element<ViewerMessage> {
         Container::new(match self.on_view {
             Some(index) => {
                 let mut row = Row::new().align_items(Alignment::Center);
 
                 row = row.push(
-                    Button::new(&mut self.previous, Text::new("<"))
+                    Button::new("<")
                         .style(style::Button::Navigator)
                         .on_press(ViewerMessage::Navigate(-1)),
                 );
@@ -80,7 +78,7 @@ impl Viewer {
                     Column::new()
                         .push(Text::new("Not Found. Maybe Deleted."))
                         .push(
-                            Button::new(&mut self.close_not_found, Text::new("Close"))
+                            Button::new(Text::new("Close"))
                                 .style(style::Button::Confirm)
                                 .on_press(ViewerMessage::CloseNotFound),
                         )
@@ -96,7 +94,7 @@ impl Viewer {
 
                 row.push(image_column)
                     .push(
-                        Button::new(&mut self.next, Text::new(">"))
+                        Button::new(">")
                             .style(style::Button::Navigator)
                             .on_press(ViewerMessage::Navigate(1)),
                     )
@@ -105,22 +103,21 @@ impl Viewer {
                         self.images[start..end]
                             .iter()
                             .enumerate()
-                            .zip(self.preview_navigators.iter_mut())
                             .fold(
                                 Column::new()
                                     .width(Length::FillPortion(1))
                                     .spacing(10)
                                     .padding(20)
                                     .align_items(Alignment::Center),
-                                |acc, ((i, image), state)| {
+                                |acc, (i, image)| {
                                     let mut preview_button = match image.as_path().extension() {
                                         Some(e) if e.eq("png") || e.eq("jpg") => {
-                                            Button::new(state, Image::new(image))
+                                            Button::new(Image::new(image))
                                         }
                                         Some(e) if e.eq("svg") => {
-                                            Button::new(state, Svg::from_path(image))
+                                            Button::new(Svg::from_path(image))
                                         }
-                                        _ => Button::new(state, Image::new("assets/blank.png")),
+                                        _ => Button::new(Image::new("assets/blank.png")),
                                     }
                                     .style(style::Button::PreviewNavigator);
 
@@ -206,7 +203,7 @@ impl Viewer {
         if let Some(center) = self.on_view {
             self.on_preview = Some(get_centered_slice(
                 &self.images,
-                self.preview_navigators.len(),
+                Self::PREVIEW_NAVIGATORS_NUM,
                 center,
             ));
         }

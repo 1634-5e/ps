@@ -12,15 +12,16 @@ panic = "abort"
 opt-level = "z"
 
 [dependencies]
-iced = { git = "https://github.com/iced-rs/iced", features = [
+iced = { version = "0.4.2", features = [
     "iced_glow",
     "debug",
     "image",
     "svg",
     "tokio",
     "canvas",
+    "pure"
 ] }
-iced_native = { git = "https://github.com/iced-rs/iced" }
+iced_native = "0.5.1"
 
 native-dialog = "0.6.2"
 svg = "0.10.0"
@@ -31,14 +32,11 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
 
 app_dirs2 = "2.4.0"
-
-json = "0.12.4"
-
 enum_dispatch = "0.3.8"
 
-[dev-dependencies]
-criterion = "0.3"
+# [dev-dependencies]
+# criterion = "0.3"
 
-[[bench]]
-name = "performance"
-harness = false
+# [[bench]]
+# name = "performance"
+# harness = false
