@@ -1,5 +1,5 @@
 #![windows_subsystem = "windows"]
-// #![allow(unused)]
+#![allow(unused)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![feature(let_chains)]
@@ -38,6 +38,7 @@ mod io {
 }
 
 mod ui {
+    pub mod curve;
     pub mod edit;
     mod icons;
     pub mod shape;
@@ -46,14 +47,13 @@ mod ui {
     pub mod utils;
     pub mod viewer;
     pub mod welcome;
-    pub mod curve;
 
     pub use edit::*;
     pub use shape::*;
     pub use style::*;
     pub use toolbar::*;
     pub use viewer::*;
-    pub use welcome::welcome;
+    pub use welcome::*;
 }
 
 use std::env;

@@ -16,7 +16,7 @@ use crate::io::dialogs::save as save_file;
 pub enum EditMessage {
     AddFromPending,
     Curve(CurveMessage),
-    ChangeShape(Box<dyn Shape>),
+    ChangeShape(ShapeEnum),
     CurveSelected(usize),
     CurvePasted(Point),
     Clear,

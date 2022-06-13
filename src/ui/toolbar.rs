@@ -64,45 +64,45 @@ impl Toolbar {
                 icons::rectangle(),
                 "line",
                 style::Button::Toolbar,
-                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
-                    Line::default(),
-                )))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(
+                    Line::default().into(),
+                ))),
             ))
             .push(button(
                 &mut self.rectangle,
                 icons::rectangle(),
                 "rect",
                 style::Button::Toolbar,
-                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
-                    Rectangle::default(),
-                )))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(
+                    Rectangle::default().into(),
+                ))),
             ))
             .push(button(
                 &mut self.triangle,
                 icons::triangle(),
                 "triangle",
                 style::Button::Toolbar,
-                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
-                    Triangle::default(),
-                )))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(
+                    Triangle::default().into(),
+                ))),
             ))
             .push(button(
                 &mut self.circle,
                 icons::triangle(),
                 "circle",
                 style::Button::Toolbar,
-                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
-                    Circle::default(),
-                )))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(
+                    Circle::default().into(),
+                ))),
             ))
             .push(button(
                 &mut self.quadratic_bezier,
                 icons::quadratic_bezier(),
                 "Bezier",
                 style::Button::Toolbar,
-                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(Box::new(
-                    QuadraticBezier::default(),
-                )))),
+                Some(ToolbarMessage::Edit(EditMessage::ChangeShape(
+                    QuadraticBezier::default().into(),
+                ))),
             ))
             .push(button(
                 &mut self.clear_canvas,

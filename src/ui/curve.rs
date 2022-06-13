@@ -1,14 +1,15 @@
-
-use iced::{canvas::{LineCap, LineJoin, LineDash, Frame, Stroke, Fill}, Color, Point};
+use iced::{
+    canvas::{Fill, Frame, LineCap, LineDash, LineJoin, Stroke},
+    Color, Point,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use svg::node::element::Path as SvgPath;
 
 use std::fmt::Display;
 
+use super::{EditMessage, Line, Shape, ShapeEnum, ShapeMessage};
 use crate::utils::{get_format_color, is_valid_rgb, SerdeColor};
-
-use super::{ShapeMessage, Shape, Line, EditMessage};
 
 #[derive(Debug, Clone)]
 pub enum CurveMessage {
@@ -99,12 +100,11 @@ impl Display for EqLineJoin {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Curve {
-    #[serde(with = "serde_traitobject")]
-    pub shape: Box<dyn Shape>,
+    pub shape: ShapeEnum,
     #[serde_as(as = "SerdeColor")]
     pub color: Color,
     pub width: f32,
-    pub line_cap: EqLineCap, //这里其实应该叫Fmt~，因为使用这个类型的原因主要是要能够转化成字符串，用于svg设置样式，而序列化只需要引入这个类型就够了
+    pub line_cap: EqLineCap,
     pub line_join: EqLineJoin,
     // pub segments: Vec<f32>,
     // pub offset: usize,
@@ -113,7 +113,7 @@ pub struct Curve {
 impl Default for Curve {
     fn default() -> Self {
         Curve {
-            shape: Box::new(Line::default()),
+            shape: Line::default().into(),
             color: Color::BLACK,
             width: 2.0,
             line_cap: EqLineCap::Round,

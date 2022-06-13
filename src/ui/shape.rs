@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use svg::node::element::path::Data;
 
-use dyn_clone::{clone_box, DynClone};
+use enum_dispatch::enum_dispatch;
 
 use crate::ui::utils::get_size;
 use crate::utils::SerdePoint;
@@ -23,9 +23,24 @@ pub enum ShapeMessage {
     Reset,
 }
 
-pub trait Shape:
-    Send + Debug + DynClone + serde_traitobject::Serialize + serde_traitobject::Deserialize
-{
+#[enum_dispatch]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ShapeEnum {
+    Line,
+    Rectangle,
+    Circle,
+    Triangle,
+    QuadraticBezier,
+}
+
+impl Default for ShapeEnum {
+    fn default() -> Self {
+        Line::default().into()
+    }
+}
+
+#[enum_dispatch(ShapeEnum)]
+pub trait Shape: Send + Debug {
     //utils
     fn is_empty(&self) -> bool;
     fn is_complete(&self) -> bool;
@@ -39,18 +54,6 @@ pub trait Shape:
     fn preview(&self, cursor_position: Point) -> Option<Path>;
     fn draw(&self, selected: bool) -> (Option<Path>, Option<Path>);
     fn export_as_svg(&self) -> Option<Data>;
-}
-
-impl Clone for Box<dyn Shape> {
-    fn clone(&self) -> Self {
-        clone_box(&**self)
-    }
-}
-
-impl Default for Box<dyn Shape> {
-    fn default() -> Self {
-        Box::new(Line::default())
-    }
 }
 
 #[serde_as]
