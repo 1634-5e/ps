@@ -5,7 +5,7 @@ use iced::pure::Element;
 use iced::pure::widget::{Column, Row, Text, Container, Button, Image};
 use iced::{Alignment, Length, Svg};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ViewerMessage {
     ImageLoaded((Vec<PathBuf>, Option<usize>)),
     Navigate(i32),
