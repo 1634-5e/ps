@@ -25,6 +25,7 @@ pub enum EditMessage {
     AddFromPending,
     Curve(CurveMessage),
     ChangeShape(ShapeEnum),
+    CurveCopied,
     CurvePasted(Point),
     Clear,
     RemoveCurve,
@@ -32,17 +33,17 @@ pub enum EditMessage {
 
 #[derive(Debug, Default)]
 pub struct Edit {
-    pub curves: Vec<Curve>,
-    pending: Curve,
-    pub copied_curve: Option<Curve>,
+    pub curves: Vec<Rc<RefCell<Curve>>>,
+    pending: Rc<RefCell<Curve>>,
     pub dirty: bool,
 
+    pub copied_curve: Option<Rc<RefCell<Curve>>>,
     selected: Rc<RefCell<(Option<usize>, Option<String>)>>,
     cache: Rc<RefCell<Cache>>,
 }
 
 impl Edit {
-    pub fn new(curves: Vec<Curve>) -> Self {
+    pub fn new(curves: Vec<Rc<RefCell<Curve>>>) -> Self {
         Edit {
             curves,
             ..Edit::default()
@@ -54,49 +55,54 @@ impl Edit {
             EditMessage::Curve(cm) => {
                 if let CurveMessage::CurveSelected(index) = cm {
                     self.selected.borrow_mut().0 = Some(index);
-                }
-                else {
-                    if let (Some(curve), _) = *self.selected.borrow() {
-                        self.curves[curve].update(cm) 
-                    } else {self.pending.update(cm)}
+                } else {
+                    if let Some(index) = self.selected.borrow().0 {
+                        self.curves[index].borrow_mut().update(cm);
+                    } else {
+                        self.pending.borrow_mut().update(cm)
+                    }
                 }
             }
             EditMessage::AddWithClick(cursor_position) => {
                 *self.selected.borrow_mut() = (None, None);
                 self.pending
+                    .borrow_mut()
                     .shape
                     .update(ShapeMessage::Labor(cursor_position));
             }
             EditMessage::ChangeShape(s) => {
-                if self.pending.shape.is_empty() {
-                    self.pending.shape = s;
-                }
+                self.pending.borrow_mut().shape = s;
             }
             EditMessage::Clear => {
                 self.curves.clear();
                 *self.selected.borrow_mut() = (None, None);
             }
             EditMessage::RemoveCurve => {
-                if let (Some(curve), _) = *self.selected.borrow() {
-                    self.curves.remove(curve);
-                    *self.selected.borrow_mut() = (None, None);
+                if let (Some(index), _) = self.selected.replace((None, None)) {
+                    self.curves.remove(index);
                 }
             }
             EditMessage::AddFromPending => {
-                self.curves.push(self.pending.clone());
-                self.pending.shape.update(ShapeMessage::Reset);
+                self.curves
+                    .push(Rc::new(Rc::make_mut(&mut self.pending).to_owned()));
+                self.pending.borrow_mut().shape.update(ShapeMessage::Reset);
                 *self.selected.borrow_mut() = (Some(self.curves.len() - 1), None);
             }
+            EditMessage::CurveCopied => {
+                if let Some(index) = self.selected.borrow().0 {
+                    self.copied_curve = Some(self.curves[index].clone());
+                }
+            }
             EditMessage::CurvePasted(point) => {
-                if let Some(copied) = &self.copied_curve {
-                    let mut new = copied.clone();
-                    new.shape.update(ShapeMessage::Centered(point));
-                    self.curves.push(new);
+                if let Some(copied) = self.copied_curve.clone() {
+                    let new = Rc::unwrap_or_clone(copied);
+                    new.borrow_mut().shape.update(ShapeMessage::Centered(point));
+                    self.curves.push(Rc::new(new));
                 }
             }
         }
 
-        if self.pending.shape.is_complete() {
+        if self.pending.borrow_mut().shape.is_complete() {
             self.update(EditMessage::AddFromPending);
         }
 
@@ -119,8 +125,8 @@ impl Edit {
                         IcedCanvas::new(Pad {
                             pending: &self.pending,
                             curves: &self.curves,
+                            selected: self.selected.clone(),
                             cache: self.cache.clone(),
-                            selected: self.selected.clone()
                         })
                         .width(Length::Fill)
                         .height(Length::Fill),
@@ -159,7 +165,7 @@ impl Edit {
     pub fn export(&self) {
         if let Some(pathbuf) = save_file() {
             let document = self.curves.iter().fold(Document::new(), |acc, x| {
-                if let Some(path) = x.save() {
+                if let Some(path) = x.borrow().save() {
                     acc.add(path)
                 } else {
                     acc
@@ -173,19 +179,18 @@ impl Edit {
 
 #[derive(Debug, Default)]
 pub struct Interaction {
-    pub copied_curve: Option<Curve>,
-    curve_to_select: Option<usize>,
+    curve_to_select: Option<Rc<RefCell<Curve>>>, //这里的原因是Edit可能会改变向量长度，而这里是独立更新的，因此可能会越界
     pressed_point: Option<Point>,
     ctrl_pressed: bool,
 }
 
 #[derive(Debug)]
 struct Pad<'a> {
-    pending: &'a Curve,
-    curves: &'a Vec<Curve>,
-    
-    cache: Rc<RefCell<Cache>>,
+    pending: &'a Rc<RefCell<Curve>>,
+    curves: &'a Vec<Rc<RefCell<Curve>>>,
+
     selected: Rc<RefCell<(Option<usize>, Option<String>)>>,
+    cache: Rc<RefCell<Cache>>,
 }
 
 impl<'a> Program<EditMessage> for Pad<'a> {
@@ -203,7 +208,7 @@ impl<'a> Program<EditMessage> for Pad<'a> {
             return (event::Status::Ignored, None);
         };
 
-        if !self.pending.shape.is_empty() {
+        if !self.pending.borrow().shape.is_empty() {
             //创建新的曲线，这个时候很多事件响应都取消了
             match event {
                 //记下按下的位置，如果按下和放开的位置距离过远，则不响应
@@ -261,9 +266,9 @@ impl<'a> Program<EditMessage> for Pad<'a> {
                         }
 
                         //如果离得远了就取消预览
-                        if let Some(to_select) = state.curve_to_select {
+                        if let Some(to_select) = state.curve_to_select.clone() {
                             let mut to_cancel = true;
-                            for (_, point) in self.curves[to_select].shape.points() {
+                            for (_, point) in to_select.borrow().shape.points() {
                                 if point.distance(cursor_position) < Pad::DETERMINANT_DISTANCE {
                                     to_cancel = false;
                                 }
@@ -275,18 +280,20 @@ impl<'a> Program<EditMessage> for Pad<'a> {
 
                         //如果没有预览中的，则选择一个距离最近的curve
                         if state.curve_to_select.is_none() {
-                            state.curve_to_select = self.decide_which_curve(cursor_position).0;
+                            if let Some(index) = self.decide_which_curve(cursor_position).0 {
+                                state.curve_to_select = Some(self.curves[index].clone());
+                            }
                         }
                     }
                     mouse::Event::ButtonPressed(mouse::Button::Left) => {
                         state.pressed_point = Some(cursor_position);
                         *self.selected.borrow_mut() = self.decide_which_curve(cursor_position);
-                        
                     }
                     mouse::Event::ButtonReleased(mouse::Button::Left) => {
                         if let Some(pressed) = state.pressed_point {
                             if pressed.distance(cursor_position) < Pad::DETERMINANT_DISTANCE {
-                                *self.selected.borrow_mut() = self.decide_which_curve(cursor_position);
+                                *self.selected.borrow_mut() =
+                                    self.decide_which_curve(cursor_position);
 
                                 if self.selected.borrow().0.is_none() {
                                     return (
@@ -310,15 +317,10 @@ impl<'a> Program<EditMessage> for Pad<'a> {
                         }
 
                         if key_code == KeyCode::C && modifiers.contains(Modifiers::CTRL) {
-                            if let (Some(selected), _) = *self.selected.borrow() {
-                                state.copied_curve = Some(self.curves[selected].clone());
-                            }
+                            return (event::Status::Captured, Some(EditMessage::CurveCopied));
                         }
 
-                        if key_code == KeyCode::V
-                            && modifiers.contains(Modifiers::CTRL)
-                            && state.copied_curve.is_some()
-                        {
+                        if key_code == KeyCode::V && modifiers.contains(Modifiers::CTRL) {
                             return (
                                 event::Status::Captured,
                                 Some(EditMessage::CurvePasted(cursor_position)),
@@ -327,7 +329,8 @@ impl<'a> Program<EditMessage> for Pad<'a> {
 
                         if key_code == KeyCode::Escape
                             && modifiers.is_empty()
-                            && (self.selected.borrow().0.is_some() || self.selected.borrow().1.is_some())
+                            && (self.selected.borrow().0.is_some()
+                                || self.selected.borrow().1.is_some())
                         {
                             *self.selected.borrow_mut() = (None, None);
                         }
@@ -362,17 +365,15 @@ impl<'a> Program<EditMessage> for Pad<'a> {
             .cache
             .borrow()
             .draw(bounds.size(), |frame: &mut Frame| {
-                let mut select = vec![];
-                if let Some(ref selected) = self.selected.borrow().0 {
-                    select.push(*selected);
-                }
-                if let Some(ref to_select) = state.curve_to_select {
-                    select.push(*to_select);
-                }
-
+                let selected = self.selected.borrow().0.clone();
                 self.curves.iter().enumerate().for_each(|(index, curve)| {
-                    curve.draw(frame, select.contains(&index));
+                    curve.borrow().draw(frame, Some(index) == selected);
                 });
+
+                //现在curve to select是交互内的逻辑，因此绘制也放在这里
+                if let Some(curve_to_select) = &state.curve_to_select {
+                    curve_to_select.borrow().draw(frame, true);
+                }
 
                 frame.stroke(
                     &Path::rectangle(Point::ORIGIN, frame.size()),
@@ -380,7 +381,7 @@ impl<'a> Program<EditMessage> for Pad<'a> {
                 );
 
                 if let Some(cursor_position) = cursor.position_in(&bounds) {
-                    self.pending.preview(frame, cursor_position);
+                    self.pending.borrow().preview(frame, cursor_position);
                 }
             });
 
@@ -414,7 +415,7 @@ impl<'a> Pad<'a> {
         let mut res = (None, None);
         let mut last_distance = Pad::DETERMINANT_DISTANCE;
         for (curves_index, curve) in self.curves.iter().enumerate() {
-            for (points_index, point) in curve.shape.points() {
+            for (points_index, point) in curve.borrow().shape.points() {
                 let distance = point.distance(cursor_position);
                 if distance < Pad::DETERMINANT_DISTANCE && distance < last_distance {
                     last_distance = distance;
@@ -455,7 +456,7 @@ impl CurveLabel {
 #[derive(Debug)]
 struct Editable<'a> {
     curves_len: usize,
-    curve: &'a Curve,
+    curve: &'a Rc<RefCell<Curve>>,
     label: CurveLabel,
 }
 
@@ -474,9 +475,9 @@ impl<'a> Editable<'a> {
                 ..
             },
         ) = (
-            self.curve.shape.points(),
-            self.curve.shape.attributes(),
-            self.curve,
+            self.curve.borrow().shape.points(),
+            self.curve.borrow().shape.attributes(),
+            *self.curve.borrow(),
         );
 
         let (r, g, b, a) = (
@@ -612,7 +613,7 @@ impl<'a> Editable<'a> {
                     .push(
                         PickList::new(
                             vec![EqLineCap::Butt, EqLineCap::Round, EqLineCap::Square],
-                            Some(*line_cap),
+                            Some(line_cap),
                             CurveMessage::LineCapSelected,
                         )
                         .style(style::PickList),
@@ -626,7 +627,7 @@ impl<'a> Editable<'a> {
                     .push(
                         PickList::new(
                             vec![EqLineJoin::Miter, EqLineJoin::Round, EqLineJoin::Bevel],
-                            Some(*line_join),
+                            Some(line_join),
                             CurveMessage::LineJoinSelected,
                         )
                         .style(style::PickList),

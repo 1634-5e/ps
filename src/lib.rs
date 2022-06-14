@@ -5,6 +5,7 @@
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![feature(let_chains)]
+#![feature(arc_unwrap_or_clone)]
 #[allow(clippy::collapsible_match)]
 #[allow(clippy::single_match)]
 
@@ -27,13 +28,16 @@ pub mod ui {
     pub mod viewer;
     pub mod welcome;
 
+    pub use curve::*;
     pub use edit::*;
+    pub use shape::*;
     pub use toolbar::*;
     pub use viewer::*;
     pub use welcome::*;
-    pub use shape::*;
-    pub use curve::*;
 }
+
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
@@ -194,7 +198,9 @@ impl Application for Ps {
                                 on_view,
                                 ..Viewer::default()
                             },
-                            edit: Edit::new(curves),
+                            edit: Edit::new(
+                                curves.into_iter().map(|curve| Rc::new(RefCell::new(curve))).collect(),
+                            ),
                             is_editing,
                             ..State::default()
                         }));
@@ -281,16 +287,14 @@ impl Application for Ps {
                         }
                         _ => {}
                     },
-                    Event::Mouse(me) => {
-                        match me {
-                            MouseEvent::WheelScrolled { delta } => {
-                                if let ScrollDelta::Lines { x: _, y } = delta {
-                                    state.viewer.navigate(-y as i32);
-                                }
+                    Event::Mouse(me) => match me {
+                        MouseEvent::WheelScrolled { delta } => {
+                            if let ScrollDelta::Lines { x: _, y } = delta {
+                                state.viewer.navigate(-y as i32);
                             }
-                            _ => {}
                         }
-                    }
+                        _ => {}
+                    },
                     _ => {}
                 },
                 Message::Viewer(vm) => state.viewer.update(vm),
@@ -304,7 +308,13 @@ impl Application for Ps {
                                 is_editing: state.is_editing,
                                 images: state.viewer.images.clone(),
                                 on_view: state.viewer.on_view,
-                                curves: state.edit.curves.clone(),
+                                curves: state
+                                    .edit
+                                    .curves
+                                    .clone()
+                                    .into_iter()
+                                    .map(|mut rc| Rc::make_mut(&mut rc).to_owned().into_inner())
+                                    .collect(),
                             };
                             return Command::perform(
                                 save_state(saved_state, parent.to_path_buf()),

@@ -3,6 +3,7 @@
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
 #![feature(let_chains)]
+#![feature(arc_unwrap_or_clone)]
 #[allow(clippy::collapsible_match)]
 #[allow(clippy::single_match)]
 
@@ -54,7 +55,9 @@ mod ui {
     pub use welcome::*;
 }
 
+use std::cell::RefCell;
 use std::env;
+use std::rc::Rc;
 
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
@@ -109,7 +112,7 @@ pub enum Message {
 #[derive(Debug)]
 enum Ps {
     Loading,
-    Loaded(State),
+    Loaded(Box<State>),
 }
 
 // assert_eq!(
@@ -209,25 +212,30 @@ impl Application for Ps {
                             on_view,
                             curves,
                         } = state;
-                        *self = Ps::Loaded(State {
+                        *self = Ps::Loaded(Box::new(State {
                             viewer: Viewer {
                                 images,
                                 on_view,
                                 ..Viewer::default()
                             },
-                            edit: Edit::new(curves),
+                            edit: Edit::new(
+                                curves
+                                    .into_iter()
+                                    .map(|curve| Rc::new(RefCell::new(curve)))
+                                    .collect(),
+                            ),
                             is_editing,
                             ..State::default()
-                        });
+                        }));
                     } else {
                         //FIXME:
                         //如果文件存在，但是解析失败，则很难将文件修改到正确的格式（意味着之前的数据丢失）
                         //这一现象的原因是改变了数据结构，因此后面可能需要考虑版本之间的兼容性
-                        *self = Ps::Loaded(State::default());
+                        *self = Ps::Loaded(Box::new(State::default()));
                     }
                 }
                 Message::Viewer(ViewerMessage::ImageLoaded(data)) => {
-                    *self = Ps::Loaded(State::default());
+                    *self = Ps::Loaded(Box::new(State::default()));
                     if let Ps::Loaded(state) = self {
                         state.viewer.update(ViewerMessage::ImageLoaded(data));
                     }
@@ -331,7 +339,13 @@ impl Application for Ps {
                                 is_editing: state.is_editing,
                                 images: state.viewer.images.clone(),
                                 on_view: state.viewer.on_view,
-                                curves: state.edit.curves.clone(),
+                                curves: state
+                                    .edit
+                                    .curves
+                                    .clone()
+                                    .into_iter()
+                                    .map(|mut rc| Rc::make_mut(&mut rc).to_owned().into_inner())
+                                    .collect(),
                             };
                             return Command::perform(
                                 save_state(saved_state, parent.to_path_buf()),

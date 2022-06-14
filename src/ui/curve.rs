@@ -98,7 +98,7 @@ impl Display for EqLineJoin {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Curve {
     pub shape: ShapeEnum,
     #[serde_as(as = "SerdeColor")]

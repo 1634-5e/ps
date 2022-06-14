@@ -1,20 +1,22 @@
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use iced::{Settings, window, Point};
 use iced::keyboard::{KeyCode, Modifiers};
 use iced::mouse::ScrollDelta;
+use iced::{window, Point, Settings};
 // use iced::time::every;
 use iced::pure::Application;
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
 
-use ps::*;
 use ps::ui::*;
+use ps::*;
 
 fn criterion_benchmark(c: &mut Criterion) {
     //empty startup
@@ -202,10 +204,10 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     if let Ps::Loaded(state) = &mut ps {
-        state.edit.copied_curve = Some(Curve {
+        state.edit.copied_curve = Some(Rc::new(RefCell::new(Curve {
             shape: Rectangle::default().into(),
             ..Curve::default()
-        });
+        })));
         ps.view();
     }
 
