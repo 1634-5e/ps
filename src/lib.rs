@@ -1,4 +1,4 @@
-//这部分只是为了测试，直接复制了一份main.rs
+//这部分只是为了测试
 
 #![windows_subsystem = "windows"]
 // #![allow(unused)]
@@ -8,7 +8,7 @@
 #[allow(clippy::collapsible_match)]
 #[allow(clippy::single_match)]
 
-mod io {
+pub mod io {
     pub mod dialogs;
     pub mod last_place;
 
@@ -17,6 +17,7 @@ mod io {
 }
 
 pub mod ui {
+    pub mod curve;
     pub mod edit;
     mod icons;
     pub mod shape;
@@ -25,24 +26,24 @@ pub mod ui {
     pub mod utils;
     pub mod viewer;
     pub mod welcome;
-    pub mod curve;
 
     pub use edit::*;
-    pub use shape::*;
-    pub use style::*;
     pub use toolbar::*;
     pub use viewer::*;
-    pub use welcome::welcome;
+    pub use welcome::*;
+    pub use shape::*;
     pub use curve::*;
 }
 
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
+use iced::pure::widget::{Column, Container};
 use iced::time::every;
 // use iced::time::every;
-use iced::{Application, Column, Container, Length};
-use iced::{Command, Element, Subscription};
+use iced::pure::{Application, Element};
+use iced::Length;
+use iced::{Command, Subscription};
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
@@ -129,7 +130,7 @@ impl Application for Ps {
         String::from("Ps")
     }
 
-    fn view(&mut self) -> Element<Message> {
+    fn view(&self) -> Element<Message> {
         match self {
             Ps::Loading => welcome(),
             Ps::Loaded(state) => {
@@ -289,7 +290,6 @@ impl Application for Ps {
                             }
                             _ => {}
                         }
-                        println!("mouse event");
                     }
                     _ => {}
                 },

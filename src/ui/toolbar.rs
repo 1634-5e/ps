@@ -124,7 +124,7 @@ impl Toolbar {
     }
 }
 
-fn button<'a>(
+fn button(
     icon: Text,
     text: &str,
     style: style::Button,
@@ -145,23 +145,3 @@ fn button<'a>(
         button
     }
 }
-
-// impl Index<ShapeKind> for Shapes {
-//     type Output = button::State;
-
-//     fn index(&self, s: ShapeKind) -> &Self::Output {
-//         match s {
-//             ShapeKind::Rectangle => &self.rectangle,
-//             ShapeKind::Triangle => &self.triangle,
-//         }
-//     }
-// }
-
-// impl IndexMut<ShapeKind> for Shapes {
-//     fn index_mut(&mut self, s: ShapeKind) -> &mut Self::Output {
-//         match s {
-//             ShapeKind::Rectangle => &mut self.rectangle,
-//             ShapeKind::Triangle => &mut self.triangle,
-//         }
-//     }
-// }

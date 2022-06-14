@@ -59,12 +59,12 @@ use std::env;
 use app_dirs2::{get_app_dir, AppDataType, AppInfo};
 use iced::keyboard::KeyCode;
 use iced::mouse::ScrollDelta;
-use iced::pure::widget::{Container, Column};
+use iced::pure::widget::{Column, Container};
 use iced::time::every;
 // use iced::time::every;
 use iced::pure::{Application, Element};
-use iced::{Command, Subscription};
 use iced::{window, Length, Settings};
+use iced::{Command, Subscription};
 use iced_native::mouse::Event as MouseEvent;
 use iced_native::window::Event as WindowEvent;
 use iced_native::Event;
@@ -235,6 +235,10 @@ impl Application for Ps {
                 _ => {}
             },
             Ps::Loaded(state) => match message {
+                //将事件传递到下一级进行处理
+                Message::Viewer(vm) => state.viewer.update(vm),
+                Message::Edit(em) => state.edit.update(em),
+                //工具栏的事件要在这里处理
                 Message::Toolbar(tm) => match tm {
                     //view
                     ToolbarMessage::Close => {
@@ -253,17 +257,19 @@ impl Application for Ps {
                     }
                     ToolbarMessage::Export => state.edit.export(),
                     ToolbarMessage::Edit(em) => state.edit.update(em),
-                    ToolbarMessage::Open => match pick() {
-                        Some(p) => {
+                    ToolbarMessage::Open => {
+                        if let Some(p) = pick() {
                             return Command::perform(open(p, true), ViewerMessage::ImageLoaded)
-                                .map(Message::Viewer)
+                                .map(Message::Viewer);
                         }
-                        None => {}
-                    },
+                    }
                 },
+                //外部设备事件的处理
                 Message::ExternEvent(ee) => match ee {
-                    Event::Window(we) => match we {
-                        WindowEvent::FileDropped(fd) => {
+                    //窗口事件
+                    Event::Window(we) => {
+                        //处理拖拽图片
+                        if let WindowEvent::FileDropped(fd) = we {
                             state.is_editing = false;
                             return Command::perform(
                                 open(vec![fd], false),
@@ -271,13 +277,14 @@ impl Application for Ps {
                             )
                             .map(Message::Viewer);
                         }
-                        _ => {}
-                    },
-                    Event::Keyboard(ke) => match ke {
-                        iced::keyboard::Event::KeyPressed {
+                    }
+                    //程序主动响应鼠标和键盘分在两处，包括这里和画布，后面应该把这里的分散到各个结构之内
+                    Event::Keyboard(ke) => {
+                        if let iced::keyboard::Event::KeyPressed {
                             key_code,
                             modifiers,
-                        } => {
+                        } = ke
+                        {
                             if !state.is_editing {
                                 match key_code {
                                     KeyCode::Delete => {
@@ -303,24 +310,19 @@ impl Application for Ps {
                                 }
                             }
                         }
-                        _ => {}
-                    },
+                    }
+                    //鼠标事件
                     Event::Mouse(me) => {
-                        match me {
-                            MouseEvent::WheelScrolled { delta } => {
-                                if let ScrollDelta::Lines { x: _, y } = delta {
-                                    state.viewer.navigate(-y as i32);
-                                }
-                            }
-                            _ => {}
+                        if let MouseEvent::WheelScrolled {
+                            delta: ScrollDelta::Lines { x: _, y },
+                        } = me
+                        {
+                            state.viewer.navigate(-y as i32);
                         }
-                        println!("mouse event");
                     }
                     _ => {}
                 },
-                Message::Viewer(vm) => state.viewer.update(vm),
-                Message::Edit(em) => state.edit.update(em),
-
+                //自动保存
                 Message::AutoSave => {
                     state.is_saving = true;
                     if let Ok(path) = get_app_dir(AppDataType::UserCache, &APP_INFO, "/") {
@@ -338,6 +340,7 @@ impl Application for Ps {
                         }
                     }
                 }
+                //响应自动保存的返回
                 Message::SavedOrFailed(result) => {
                     state.is_saving = false;
                     if result.is_ok() {

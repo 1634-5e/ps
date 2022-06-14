@@ -8,10 +8,7 @@ use svg::node::element::Path as SvgPath;
 
 use std::fmt::Display;
 
-use super::{
-    shape::{Line, Shape, ShapeEnum, ShapeMessage},
-    EditMessage,
-};
+use super::shape::{Line, Shape, ShapeEnum, ShapeMessage};
 use crate::utils::{get_format_color, is_valid_rgb, SerdeColor};
 
 #[derive(Debug, Clone)]
@@ -129,7 +126,7 @@ impl Default for Curve {
 
 impl Curve {
     #[inline(always)]
-    pub fn update(&mut self, message: CurveMessage) -> Option<EditMessage> {
+    pub fn update(&mut self, message: CurveMessage) {
         match message {
             CurveMessage::Shape(sm) => {
                 self.shape.update(sm);
@@ -182,9 +179,8 @@ impl Curve {
             }
             CurveMessage::LineCapSelected(lc) => self.line_cap = lc,
             CurveMessage::LineJoinSelected(lj) => self.line_join = lj,
-            CurveMessage::CurveSelected(index) => return Some(EditMessage::CurveSelected(Some(index))),
+            _ => {}
         }
-        None
     }
 
     #[inline(always)]

@@ -34,9 +34,9 @@ serde_json = "1.0.79"
 app_dirs2 = "2.4.0"
 enum_dispatch = "0.3.8"
 
-# [dev-dependencies]
-# criterion = "0.3"
+[dev-dependencies]
+criterion = "0.3"
 
-# [[bench]]
-# name = "performance"
-# harness = false
+[[bench]]
+name = "performance"
+harness = false
