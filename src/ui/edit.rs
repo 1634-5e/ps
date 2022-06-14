@@ -1,7 +1,8 @@
-use iced::canvas::{event, Cursor, Event, Frame, Geometry, Path, Stroke};
 use iced::keyboard::{KeyCode, Modifiers};
 use iced::pure::widget::{
-    canvas, canvas::Canvas as IcedCanvas, text_input, Column, PickList, Row, Slider, Space, Text,
+    canvas::Canvas as IcedCanvas,
+    canvas::{event, Cache, Cursor, Event, Frame, Geometry, Path, Program, Stroke},
+    text_input, Column, PickList, Row, Slider, Space, Text,
 };
 use iced::pure::Element;
 use iced::{keyboard, mouse, Alignment, Length, Point, Rectangle as IcedRectangle};
@@ -33,7 +34,6 @@ pub struct Edit {
     pending: Curve,
     pub copied_curve: Option<Curve>,
     selected: (Option<usize>, Option<String>),
-    cache: canvas::Cache, //缓存
     pub dirty: bool,
 }
 
@@ -102,7 +102,6 @@ impl Edit {
 
         //响应事件之后将“脏位”置为是，同时重绘画布
         self.dirty = true;
-        self.redraw();
     }
 
     fn editable(&self) -> Element<CurveMessage> {
@@ -301,7 +300,6 @@ impl Edit {
                         IcedCanvas::new(Pad {
                             pending: &self.pending,
                             curves: &self.curves,
-                            cache: &self.cache, //缓存
                         })
                         .width(Length::Fill)
                         .height(Length::Fill),
@@ -332,10 +330,6 @@ impl Edit {
             svg::save(pathbuf, &document).unwrap();
         }
     }
-
-    pub fn redraw(&mut self) {
-        self.cache.clear()
-    }
 }
 
 #[derive(Debug, Default)]
@@ -345,16 +339,16 @@ pub struct Interaction {
     curve_to_select: Option<usize>,
     pressed_point: Option<Point>,
     ctrl_pressed: bool,
+    cache: Cache, //缓存
 }
 
 #[derive(Debug)]
 struct Pad<'a> {
     pending: &'a Curve,
     curves: &'a Vec<Curve>,
-    cache: &'a canvas::Cache, //缓存
 }
 
-impl<'a> canvas::Program<EditMessage> for Pad<'a> {
+impl<'a> Program<EditMessage> for Pad<'a> {
     type State = Interaction;
     fn update(
         &self,
@@ -521,6 +515,7 @@ impl<'a> canvas::Program<EditMessage> for Pad<'a> {
             }
         }
 
+        state.cache.clear();
         (event::Status::Ignored, None)
     }
 
@@ -530,7 +525,7 @@ impl<'a> canvas::Program<EditMessage> for Pad<'a> {
         bounds: IcedRectangle<f32>,
         cursor: Cursor,
     ) -> Vec<Geometry> {
-        let content = self.cache.draw(bounds.size(), |frame: &mut Frame| {
+        let content = state.cache.draw(bounds.size(), |frame: &mut Frame| {
             let mut select = vec![];
             if let Some(ref selected) = state.selected.0 {
                 select.push(*selected);

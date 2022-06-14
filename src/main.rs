@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 // #![allow(unused)]
 #![feature(associated_type_bounds)]
 #![feature(if_let_guard)]
