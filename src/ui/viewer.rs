@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use super::style;
+use iced::pure::widget::{Button, Column, Container, Image, Row, Text};
 use iced::pure::Element;
-use iced::pure::widget::{Column, Row, Text, Container, Button, Image};
 use iced::{Alignment, Length, Svg};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +23,7 @@ pub struct Viewer {
 
 impl Viewer {
     const PREVIEW_NAVIGATORS_NUM: usize = 8;
-    
+
     pub fn update(&mut self, message: ViewerMessage) {
         match message {
             ViewerMessage::ImageLoaded((mut images, on_view)) => {
@@ -100,35 +100,30 @@ impl Viewer {
                     )
                     .push(if let Some((start, end)) = self.on_preview {
                         //用迭代器
-                        self.images[start..end]
-                            .iter()
-                            .enumerate()
-                            .fold(
-                                Column::new()
-                                    .width(Length::FillPortion(1))
-                                    .spacing(10)
-                                    .padding(20)
-                                    .align_items(Alignment::Center),
-                                |acc, (i, image)| {
-                                    let mut preview_button = match image.as_path().extension() {
-                                        Some(e) if e.eq("png") || e.eq("jpg") => {
-                                            Button::new(Image::new(image))
-                                        }
-                                        Some(e) if e.eq("svg") => {
-                                            Button::new(Svg::from_path(image))
-                                        }
-                                        _ => Button::new(Image::new("assets/blank.png")),
+                        self.images[start..end].iter().enumerate().fold(
+                            Column::new()
+                                .width(Length::FillPortion(1))
+                                .spacing(10)
+                                .padding(20)
+                                .align_items(Alignment::Center),
+                            |acc, (i, image)| {
+                                let mut preview_button = match image.as_path().extension() {
+                                    Some(e) if e.eq("png") || e.eq("jpg") => {
+                                        Button::new(Image::new(image))
                                     }
-                                    .style(style::Button::PreviewNavigator);
+                                    Some(e) if e.eq("svg") => Button::new(Svg::from_path(image)),
+                                    _ => Button::new(Image::new("assets/blank.png")),
+                                }
+                                .style(style::Button::PreviewNavigator);
 
-                                    if i + start != index {
-                                        preview_button = preview_button
-                                            .on_press(ViewerMessage::JumpToImage(i + start));
-                                    }
+                                if i + start != index {
+                                    preview_button = preview_button
+                                        .on_press(ViewerMessage::JumpToImage(i + start));
+                                }
 
-                                    acc.push(preview_button)
-                                },
-                            )
+                                acc.push(preview_button)
+                            },
+                        )
 
                         //循环
                         // for image in self.images[start..end + 1].iter().enumerate() {

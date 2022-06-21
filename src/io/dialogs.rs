@@ -62,11 +62,6 @@ pub fn save() -> Option<PathBuf> {
 }
 
 pub async fn open(mut paths: Vec<PathBuf>, automatic_load: bool) -> (Vec<PathBuf>, Option<usize>) {
-    //打开自定义文件
-    if paths.len() == 1 && let Some(ext) = paths[0].extension() && ext.eq("psext") {
-        
-    }
-
     //要处理两个情况，
     //1：用户使用按钮打开文件或者文件夹，目前还只能打开单个文件/文件夹
     //2：用户使用拖拽方式打开，这时可能有多个路径需要处理
