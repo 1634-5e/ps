@@ -199,7 +199,10 @@ impl Application for Ps {
                                 ..Viewer::default()
                             },
                             edit: Edit::new(
-                                curves.into_iter().map(|curve| Rc::new(RefCell::new(curve))).collect(),
+                                curves
+                                    .into_iter()
+                                    .map(|curve| Rc::new(RefCell::new(curve)))
+                                    .collect(),
                             ),
                             is_editing,
                             ..State::default()
